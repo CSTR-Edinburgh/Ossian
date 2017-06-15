@@ -1,8 +1,7 @@
 #!/bin/bash 
 
-BASIC=0
-WORLD=0
-SEQUITUR=1 
+BASIC=1
+SEQUITUR=0 
 STANFORD=0
 
 ## Location of this script:-
@@ -23,16 +22,23 @@ if [ $BASIC == 1 ] ; then
     cd $OSSIAN/tools/
     git clone https://github.com/CSTR-Edinburgh/merlin.git
     cd merlin
-    ## reset to this specific version, which I have tested:--
+    ## reset to this specific version, which I have tested, must check later versions:--
     git reset --hard 8aed278  
 
+    ## Ossian will use Merlin's copy of World, instead of its own as previously:-
+    cd $OSSIAN/tools/merlin/tools/WORLD/
+    make -f makefile
+    make -f makefile analysis
+    make -f makefile synth
+    mkdir $OSSIAN/tools/bin/
+    cp $OSSIAN/tools/merlin/tools/WORLD/build/{analysis,synth} $OSSIAN/tools/bin/
 
-    #echo 'stop early'
-    #exit 1
+    echo 'stop early'
+    exit 1
 
     ## Assuming that you want to compile everything cleanly from scratch:
-    rm -r $OSSIAN/tools/downloads/*
-    rm -r $OSSIAN/tools/bin/*
+    rm -rf $OSSIAN/tools/downloads/*
+    rm -rf $OSSIAN/tools/bin/*
 
     ## Make sure these locations exist:
     mkdir -p $OSSIAN/tools/bin
@@ -97,18 +103,17 @@ if [ $BASIC == 1 ] ; then
 
 fi
 
+### New approach -- just use Merlin's version of World
+# if [ $WORLD == 1 ] ; then
+#     cd $OSSIAN/tools/world/World-master
+#     rm -rf build/*
+#     make -f makefile clean
+#     make -f makefile analysis
+#     make -f makefile synth
+#     cp build/analysis $OSSIAN/tools/bin/analysis
+#     cp build/synth $OSSIAN/tools/bin/synth  
+# fi
 
-if [ $WORLD == 1 ] ; then
-
-    cd $OSSIAN/tools/world/World-master
-    rm -rf build/*
-    make -f makefile clean
-    make -f makefile analysis
-    make -f makefile synth
-    cp build/analysis $OSSIAN/tools/bin/analysis
-    cp build/synth $OSSIAN/tools/bin/synth
-      
-fi
 
 
 if [ $SEQUITUR == 1 ] ; then
@@ -122,38 +127,10 @@ if [ $SEQUITUR == 1 ] ; then
     rm -r g2p-r1668-r3.tar.gz
     cd g2p
 
-    ## Couldn't compile with clang on mac -- specify to use g++.
-    ## Add this in setup.py under 'import os':
-
-## Don't indent this to avoid screwing up the sed expression:
-mv setup.py setup.py.BAK
-sed 's/import os/import os\
-\
-os.environ["CC"] = "g++"\
-os.environ["CXX"] = "g++"/' setup.py.BAK > setup.py
-
-    mv UnorderedMap.hh UnorderedMap.hh.BAK
-    sed '@#include <tr1/unordered_map>@#include <unordered_map>@' UnorderedMap.hh.BAK > UnorderedMap.hh; 
-
-
     ## Compile:
     python setup.py install --prefix  $OSSIAN/tools
 
 fi
-
-# if [ $SEQUITUR == 1 ] ; then
-
-#     rm -rf $OSSIAN/tools/g2p/ $OSSIAN/tools/sequitur-g2p/
-
-#     # Sequitur G2P
-#     cd $OSSIAN/tools/
-#     git clone https://github.com/sequitur-g2p/sequitur-g2p.git
-
-#     cd sequitur-g2p
-
-#     ## Compile:
-#     CFLAGS="-std=c++0x" python setup.py install --prefix  $OSSIAN/tools 
-# fi
 
 
 
