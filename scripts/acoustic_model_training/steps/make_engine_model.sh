@@ -1,0 +1,93 @@
+#!/bin/bash
+##
+## Project: Simple4All - November 2013 - www.simple4all.org 
+## Contact: Oliver Watts - owatts@staffmail.ed.ac.uk
+
+
+#----------------------------------------------------------------------
+
+INDIR=$1
+OUTDIR=$2
+BIN=$3
+
+[ $# -ne 3 ] && echo "Wrong number of arguments supplied" && exit 1 ;
+
+UTIL="$( cd "$( dirname "$0" )/../util" && pwd )" ## location of util script
+
+if [ -z $VOICE_BUILD_CONFIG ] ; then
+    echo 'Environment variable VOICE_BUILD_CONFIG has not been set!' ; exit 1
+fi
+source $VOICE_BUILD_CONFIG
+
+#----------------------------------------------------------------------
+
+source $UTIL/setup_directory.sh $INDIR $OUTDIR
+
+
+mkdir -p $OUTDIR/engine/
+
+
+
+
+cp $INDIR/tree* $OUTDIR/
+python $UTIL/separate_trees.py -treefile $OUTDIR/tree_cmp.txt
+
+#$UTIL/make_config.sh $OUTDIR/config/
+
+for STREAM in $SHORT_STREAM_NAMES ; do 
+
+ echo "LT $OUTDIR/tree_cmp.txt_${STREAM}" > $OUTDIR/engine.hed
+ echo "CT $OUTDIR/engine/" >> $OUTDIR/engine.hed
+ echo "CM $OUTDIR/engine/" >> $OUTDIR/engine.hed
+
+ $BIN/HHEd -A -B -C $OUTDIR/config/engine_convert.conf -D -V -T 1 -H $INDIR/cmp.mmf \
+ -s -p -i $OUTDIR/engine.hed $OUTDIR/data/modellist.full
+ 
+ if [ $? -gt 0 ] ; then echo "Convert to engine format failed for stream $STREAM" ; exit 1 ; fi
+
+done
+
+
+## Rename final models -- this is hard-coded for SPTK / STRAIGHT stream-names,
+## need to generalise for GlottHMM etc.:--
+i=1
+for TYPE in $STREAM_NAMES; do
+    mv $OUTDIR/engine/pdf.${i} $OUTDIR/engine/${TYPE}.pdf
+    mv $OUTDIR/engine/trees.${i} $OUTDIR/engine/tree-${TYPE}.inf
+    i=$((i+1))
+done
+
+## hardcoded for WORLD
+mv $OUTDIR/engine/trees.5 $OUTDIR/engine/tree-bap.inf
+mv $OUTDIR/engine/pdf.5 $OUTDIR/engine/bap.pdf
+
+ 
+
+## dur 
+echo "LT $OUTDIR/tree_dur.txt" > $OUTDIR/engine.hed
+echo "CT $OUTDIR/engine/" >> $OUTDIR/engine.hed
+echo "CM $OUTDIR/engine/" >> $OUTDIR/engine.hed
+
+
+$BIN/HHEd -A -B -C $OUTDIR/config/engine_convert.conf -D -V -T 1 -H $INDIR/dur.mmf \
+ -s -p -i $OUTDIR/engine.hed $OUTDIR/data/modellist.full
+
+if [ $? -gt 0 ] ; then echo "Convert to engine format failed for duration " ; exit 1 ; fi
+
+
+mv $OUTDIR/engine/pdf.1 $OUTDIR/engine/duration.pdf     ## $OUTDIR/engine/duration-2.3.pdf
+mv $OUTDIR/engine/trees.1 $OUTDIR/engine/tree-duration.inf
+
+
+
+## ------------------------ check success ----------------------------
+#for fname in tree-duration.inf duration.pdf tree-mcep.inf mcep.pdf \
+#                                            logF0.pdf tree-logF0.inf ; do
+# if [ ! -e $OUTDIR/engine/$fname ] ; then
+#    echo "Making engine files failed: no $OUTDIR/engine/$fname"
+#    exit 1
+# fi
+#done   
+
+## -------------------------------------------------------------------
+

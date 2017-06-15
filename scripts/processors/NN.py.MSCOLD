@@ -1,0 +1,826 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+## Project: Simple4All - March 2016 - www.simple4all.org 
+## Contact: Oliver Watts - owatts@staffmail.ed.ac.uk
+
+
+
+
+from UtteranceProcessor import *
+from util.NodeProcessors import *
+
+from distutils.spawn import find_executable
+
+from naive.naive_util import readlist
+from util.speech_manip import get_speech,put_speech
+
+import sys
+import numpy as np
+import numpy 
+import math
+
+import time
+
+import glob
+
+import util.Wavelets as cwt
+import util.cwt_utils
+
+
+## add a path to import relative to this file's location (messy):
+this_location = os.path.realpath(os.path.abspath(os.path.dirname(__file__)))
+sys.path.append(this_location + '/../../tools/dnn_tts/')
+
+from frontend.label_normalisation import HTSLabelNormalisation, HTSDurationLabelNormalisation
+from frontend.mlpg_fast import MLParameterGenerationFast
+
+class NN(object):
+    def __init__(self, model_dir):
+        self.load_from_files(model_dir)
+
+        
+
+    def load_from_files(self, model_dir):
+        self.model_dir = model_dir
+        files =  glob.glob(self.model_dir + '/*')
+        #print 'files in ' + self.model_dir
+        #print files
+        
+        norm_count = 0
+        
+        self.layers = {}
+        
+        #print files
+        
+        for file in files:
+            junk,base = os.path.split(file)
+            base = base.replace('.npy','')
+            if base.startswith('LAYER'):  ## LAYER_001_TANH_b.npy
+            
+                junk,number,ltype,part = base.split('_')
+                number = int(number)
+                weights = numpy.load(file)
+                if number not in self.layers:
+                    self.layers[number] = {}
+                self.layers[number][part] = weights
+                self.layers[number]['activation'] = ltype
+        
+            if base == 'NORM_OUTPUT_MEAN':
+                self.output_mean = numpy.load(file)
+                norm_count += 1
+                
+            if base == 'NORM_OUTPUT_STD':
+                self.output_std = numpy.load(file)
+                norm_count += 1
+                
+            if base == 'NORM_INPUT_MIN':
+                self.input_min = numpy.load(file)
+                norm_count += 1
+                
+            if base == 'NORM_INPUT_MAX':                                    
+                self.input_max = numpy.load(file)
+                norm_count += 1
+                
+        assert norm_count == 4
+        self.indim = numpy.shape(self.input_min)[0]
+        self.outdim = numpy.shape(self.output_mean)[0]
+        
+        self.target_max = 0.99
+        self.target_min = 0.01
+        target_diff = self.target_max - self.target_min
+        target_diff_vect = numpy.ones(numpy.shape(self.input_min)) * target_diff
+        data_diff_vect = self.input_max - self.input_min
+        
+        target_diff_vect[data_diff_vect <= 0.0] = 1.0 
+        data_diff_vect[data_diff_vect <= 0.0] = 1.0 
+                
+        
+        self.scale_vector = target_diff_vect / data_diff_vect
+        
+        # linearly rescale data values having observed min and max into a new arbitrary range min' to max':
+        # newvalue= (max'-min')/(max-min)*(value-max)+max'
+        # or
+        # newvalue= (max'-min')/(max-min)*(value-min)+min'.
+        
+        
+        
+    def predict(self, input, input_normalisation=True, output_denormalisation=True):
+        nframe, ndim = numpy.shape(input)
+        assert ndim == self.indim, (ndim, self.indim)
+        
+        if input_normalisation:
+            ## normalise:
+            input = input - self.input_min
+            input = input * self.scale_vector
+            input = input + self.target_min
+
+
+        
+#         put_speech(input, '/afs/inf.ed.ac.uk/user/o/owatts/temp/cpu_gen/binlab_OSSIANnorm_66_015.cmpFIXED2')
+#         print '/afs/inf.ed.ac.uk/user/o/owatts/temp/cpu_gen/binlab_OSSIANnorm_66_015.cmpFIXED2'
+#         sys.exit('vliadnviadnvdvn 3 stoped early')
+#         
+#                 
+#         
+        for (i, layer) in sorted(self.layers.items()):
+            print i
+            input = numpy.dot(input, layer['W'])
+            input += layer['b']
+            if layer['activation'] == 'TANH':
+                input = numpy.tanh(input)
+            elif layer['activation'] == 'LINEAR':
+                pass
+            else:
+                sys.exit('unknown activation: %s'%(layer['activation']))
+                
+#                 
+#         put_speech(input, '/afs/inf.ed.ac.uk/user/o/owatts/temp/cpu_gen/undenorm_66_015B.cmp')
+#         sys.exit('vliadnviadnvdvn stoped early 888')
+#                         
+#                 
+        if output_denormalisation:
+            output = input * self.output_std + self.output_mean
+        else:    
+            output = input        
+        return output
+
+
+
+class NNAcousticModel(NN):
+    ## add speech specific stuff, like splitting into streams and param gen
+    def __init__(self, model_dir, question_file_name, silence_pattern='/3:sil/'):
+        super(NNAcousticModel, self).__init__(model_dir)
+        self.load_stream_info()
+        self.label_expander = HTSLabelNormalisation(question_file_name=question_file_name)
+        self.param_generator = MLParameterGenerationFast() # ParameterGeneration()
+        self.silent_feature_indices = self.get_silent_feature_indices(question_file_name, silence_pattern) 
+        
+        std = self.output_std
+        m = numpy.shape(std)
+        
+        std = std.reshape((1,self.outdim))
+        
+        self.stream_std = self.split_into_streams(std)
+        
+
+    
+    def get_silent_feature_indices(self, question_file_name, silence_pattern):
+        indices = []
+        questions = [q for q in readlist(question_file_name) if q != '']
+        questions = [q for q in questions if 'CQS' not in q]
+        for (i, question) in enumerate(questions):
+            if silence_pattern in question:
+                indices.append(i)
+                print question
+        return indices
+        
+            
+    def load_stream_info(self):
+        stream_info_fname = os.path.join(self.model_dir, 'stream_info.txt')
+        assert os.path.isfile(stream_info_fname)
+        stream_data = readlist(stream_info_fname)
+        stream_data = [line.split(' ') for line in stream_data]
+        assert len(stream_data)== 4
+        (self.instreams, indims, self.outstreams, outdims) = stream_data
+        indims = [int(val) for val in indims]
+        outdims = [int(val) for val in outdims]
+        
+        ## note that indims are not network input, but input to acoustic preprocessing of data!
+        assert self.outdim == sum(outdims)
+        self.indims = dict(zip(self.instreams, indims))
+        self.outdims = dict(zip(self.outstreams, outdims))
+        
+        
+        
+    ## FOR DEBUGGING:-
+    def generate_from_norm_binary_lab(self, bin_label_file, labdim, outwave, enforce_silence=False, mlpg=True, vuv_thresh=0.5, fzero_scale=1.0):
+
+
+        input = get_speech(bin_label_file, labdim)
+        
+        #input = input[:500,:]
+        output = self.predict(input, input_normalisation=True)
+        
+        put_speech(output, '/afs/inf.ed.ac.uk/user/o/owatts/temp/cpu_gen/undenorm_66_015_from_norm_lab.cmp')
+        sys.exit('vliadnviadnvdvn stoped early')
+        
+        streams = self.split_into_streams(output)
+        
+
+            
+            
+        if mlpg:
+            mlpged = {}
+            for (stream, data) in streams.items():        
+                if stream in self.indims:
+                    mlpg_data = self.param_generator.generation(data, self.stream_std[stream], self.indims[stream])
+                else:
+                    mlpg_data = data
+                mlpged[stream] = mlpg_data
+            streams = mlpged
+            
+        else:
+            # take statics only!
+            statics = {}
+            for (stream, data) in streams.items():
+                if stream in self.indims:
+                    statics[stream] = data[:,:self.indims[stream]]
+                else:  ## for e.g. vuv
+                    statics[stream] = data
+            streams = statics
+
+        if enforce_silence:
+            for (stream, data) in streams.items():
+                print input[:,self.silent_feature_indices]
+                sys.exit('ntfbdfbsfrbsfbr')
+                silent_frames = numpy.sum(input[:,self.silent_feature_indices], axis=1)
+                data[silent_frames == 1.0, :] = 0.0
+                streams[stream] = data
+                        
+        if 'lf0' in streams:
+            fzero = numpy.exp(streams['lf0'])     
+            
+            if 'vuv' in streams:
+                vuv = streams['vuv']
+                lf0 = streams['lf0']
+                fzero[vuv <= vuv_thresh] = 0.0
+            
+            fzero *= fzero_scale
+            
+            streams['lf0'] = fzero
+        
+
+                    
+        
+        self.world_resynth(streams, outwave)
+      
+      
+              
+    def generate(self, htk_label_file, enforce_silence=True, mlpg=True, fill_unvoiced_gaps=0, \
+                                 variance_expansion=1.0, vuv_thresh=0.5, fzero_scale=1.0):
+        
+        input = self.label_expander.load_labels_with_state_alignment(htk_label_file)
+        output = self.predict(input)
+        streams = self.split_into_streams(output)            
+            
+        if mlpg:
+            mlpged = {}
+            for (stream, data) in streams.items():        
+                if stream in self.indims:
+                    mlpg_data = self.param_generator.generation(data, self.stream_std[stream], self.indims[stream])
+                else:
+                    mlpg_data = data
+                mlpged[stream] = mlpg_data
+            streams = mlpged
+            
+        else:
+            # take statics only!
+            statics = {}
+            for (stream, data) in streams.items():
+                if stream in self.indims:
+                    statics[stream] = data[:,:self.indims[stream]]
+                else:  ## for e.g. vuv
+                    statics[stream] = data
+            streams = statics
+
+
+        ## TODO: handle F0 separately
+        if variance_expansion > 0.0:
+            new_streams = {}
+            for (stream, data) in streams.items():
+                new_streams[stream] = self.simple_scale_variance_wrapper_p0(streams[stream], stream)
+            streams = new_streams
+
+        # impose 0 ceiling on baps, else we get artifacts:-
+        # (I think this was the problem I was trying to fix by not scaling f0 and energy previously)
+        streams['bap'] = np.minimum(streams['bap'], np.zeros(np.shape(streams['bap'])))
+
+
+#         if fill_unvoiced_gaps > 0:
+#             vuv = streams['vuv']
+#             ## turn from soft to binary:
+#             binary_vuv = np.zeros(np.shape(vuv))
+#             binary_vuv[vuv > vuv_thresh] = 1
+#             vuv = binary_vuv
+#             gaplength = fill_unvoiced_gaps
+#             vuv = fill_short_unvoiced_gaps(vuv, gaplength)
+#             print vuv
+#             streams['vuv'] = vuv
+#             
+
+
+        if enforce_silence:
+            for (stream, data) in streams.items():
+                silent_frames = numpy.sum(input[:,self.silent_feature_indices], axis=1)                
+                data[silent_frames == 1.0, :] = 0.0
+                streams[stream] = data
+                        
+        if 'lf0' in streams:
+            fzero = numpy.exp(streams['lf0'])     
+            
+            if 'vuv' in streams:
+                vuv = streams['vuv']
+                lf0 = streams['lf0']
+                fzero[vuv <= vuv_thresh] = 0.0
+            
+            fzero *= fzero_scale
+            
+            streams['lf0'] = fzero
+        
+        #self.world_resynth(streams, outwave)
+        return streams
+        
+    
+
+    
+    def split_into_streams(self, input):
+        nframe, ndim = numpy.shape(input)
+        assert ndim == self.outdim, (ndim, self.outdim)  
+        
+        start = 0
+        outputs = {}
+        for stream in self.outstreams:
+            end = start + self.outdims[stream]
+            print stream
+            outputs[stream] = input[:,start:end]
+            start = end
+        
+        return outputs
+
+    #def enforce_silence(streams):
+
+#    def expand_label():
+        
+        
+        
+        
+        
+
+    def simple_scale_variance_wrapper_0(self, speech, stream):
+
+        return speech
+        
+
+    def simple_scale_variance_wrapper_p0(self, speech, stream):
+
+        if stream == 'mgc':
+            cep_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            ene_speech = self.simple_scale_variance(speech, stream, gv_weight=0.0)
+            scaled_speech = np.hstack([ene_speech[:,:1], cep_speech[:,1:]])
+        else:
+            scaled_speech = speech
+        return scaled_speech
+        
+    def simple_scale_variance_wrapper_p2(self, speech, stream):
+
+        if stream == 'mgc':
+            cep_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            ene_speech = self.simple_scale_variance(speech, stream, gv_weight=0.2)
+            scaled_speech = np.hstack([ene_speech[:,:1], cep_speech[:,1:]])
+        if stream == 'lf0':
+            scaled_speech = self.simple_scale_variance(speech, stream, gv_weight=0.2)
+        else:
+            scaled_speech = speech
+        return scaled_speech
+
+            
+    def simple_scale_variance_wrapper_p5(self, speech, stream):
+
+        if stream == 'mgc':
+            cep_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            ene_speech = self.simple_scale_variance(speech, stream, gv_weight=0.5)
+            scaled_speech = np.hstack([ene_speech[:,:1], cep_speech[:,1:]])
+        if stream == 'lf0':
+            scaled_speech = self.simple_scale_variance(speech, stream, gv_weight=0.5)
+        else:
+            scaled_speech = speech
+        return scaled_speech
+            
+                        
+    def simple_scale_variance_wrapper_1(self, speech, stream):
+
+        if stream == 'mgc':
+            cep_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            ene_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            scaled_speech = np.hstack([ene_speech[:,:1], cep_speech[:,1:]])
+        if stream == 'lf0':
+            scaled_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+        else:
+            scaled_speech = speech
+        return scaled_speech
+            
+            
+            
+    def simple_scale_variance_wrapper_m2(self, speech, stream):
+
+        if stream == 'mgc':
+            cep_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            ene_speech = self.simple_scale_variance(speech, stream, gv_weight=0.0)
+            scaled_speech = np.hstack([ene_speech[:,:1], cep_speech[:,1:]])
+        if stream == 'lf0':
+            scaled_speech = self.simple_scale_variance(speech, stream, gv_weight=0.2)
+        if stream == 'bap':
+            scaled_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            
+        else:
+            scaled_speech = speech
+        return scaled_speech
+                        
+                        
+
+    def simple_scale_variance_wrapper_n2(self, speech, stream):
+
+        if stream == 'mgc':
+            cep_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+            ene_speech = self.simple_scale_variance(speech, stream, gv_weight=0.2)
+            scaled_speech = np.hstack([ene_speech[:,:1], cep_speech[:,1:]])
+        else:
+            scaled_speech = speech
+        return scaled_speech                        
+
+
+    def simple_scale_variance_wrapper_nfull(self, speech, stream):
+
+        if stream == 'mgc':
+            scaled_speech = self.simple_scale_variance(speech, stream, gv_weight=1.0)
+        else:
+            scaled_speech = speech
+        return scaled_speech                             
+            
+    def simple_scale_variance(self, speech, stream, gv_weight=1.0):
+        
+        stream_std = self.stream_std[stream][0,:]
+        static_std = stream_std[:self.indims[stream]]
+
+        assert gv_weight <= 1.0 and gv_weight >= 0.0
+        local_weight = 1.0 - gv_weight
+
+        utt_mean = numpy.mean(speech, axis=0) 
+        utt_std =  numpy.std(speech, axis=0) 
+
+        global_std = numpy.transpose(static_std)
+        weighted_global_std = (gv_weight * global_std) + (local_weight * utt_std)
+        std_ratio = weighted_global_std / utt_std 
+
+        nframes, ndim = numpy.shape(speech)
+        utt_mean_matrix = numpy.tile(utt_mean, (nframes,1))
+        std_ratio_matrix = numpy.tile(std_ratio, (nframes,1))
+
+        scaled_speech = ((speech - utt_mean_matrix) * std_ratio_matrix) + utt_mean_matrix
+        
+        return scaled_speech
+
+
+
+
+
+
+
+
+class NNDurationModel(NN):
+    ## assume single stream, with 1 output = with n elements for n states of 1 phone
+    def __init__(self, model_dir, question_file_name):
+        super(NNDurationModel, self).__init__(model_dir)
+        self.label_expander = HTSDurationLabelNormalisation(question_file_name=question_file_name)
+        
+    def generate(self, htk_label_file, enforce_silence=False, mlpg=True, vuv_thresh=0.5, fzero_scale=1.0):
+        
+        input = self.label_expander.load_labels_with_state_alignment(htk_label_file)
+        output = self.predict(input)
+        
+        ## as these are state durations in frames, enforce integer valued output, values greater than 0:
+        output = numpy.round(output)
+        output[output < 1] = 1
+        output = numpy.array(output, dtype='int')
+        
+        return output
+        
+
+
+#### classes which apply NN models to utterances: #####
+
+class NNDurationPredictor(UtteranceProcessor):
+
+    def load(self): 
+
+        ## Set path to HTS binaries from voice resources:
+        self.hts_dir = self.voice_resources.path[c.BIN]
+
+        self.input_label_filetype = self.config.get('input_label_filetype', 'lab_dur')
+        self.question_file_name = self.config.get('question_file', 'questions_dur.hed.cont')
+
+        self.model_dir = os.path.join(self.get_location()) 
+
+        self.target_nodes = self.config.get('target_nodes', '//segment')
+        self.ms_framerate = int(self.config.get('ms_framerate', 5))
+        self.child_tag = self.config.get('child_tag', 'state')
+        
+        try:
+            qfile = os.path.join(self.voice_resources.path[c.TRAIN], self.question_file_name)
+            ## TODO: pack up qfile too
+            self.model = NNDurationModel(self.model_dir, qfile)
+            self.trained = True
+        except:
+            #sys.exit('Cannot load NN model from model_dir: %s'%self.model_dir)
+            print('Cannot load NN model from model_dir: %s -- not trained yet'%self.model_dir)
+            self.trained = False
+            
+            
+    def do_training(self, speech_corpus, text_corpus):
+        
+        if self.trained:  
+            print 'NNDurationPredictor already trained'
+            return
+
+        
+        
+        print 'Training of NNDurationPredictor itself not supported within Ossian -- '
+        print 'use DNN-TTS to train on the prepared data'
+        if not os.path.isdir(self.model_dir):
+            os.makedirs(self.model_dir)
+            
+            
+### previously: print 'Ossian only extracts binary NN inputs and outputs:'
+#         for utt in speech_corpus:            
+#            
+#             htk_label_file = utt.get_filename(self.input_label_filetype) 
+#             binary_label = self.label_expander.load_labels_with_state_alignment(htk_label_file)
+#         
+
+
+
+
+    def process_utterance(self, utt):
+        if utt.has_attribute("waveform"):
+            #print "Utt has a natural waveform -- don't synthesise"
+            return
+
+#         if not self.trained:
+#             print 'WARNING: Cannot apply processor %s till model is trained'%(self.processor_name)
+#             return
+        
+        label = utt.get_filename(self.input_label_filetype) 
+        
+        durations = self.model.generate(label)
+        
+        m,n = numpy.shape(durations)
+        nodes = utt.xpath(self.target_nodes)
+        assert  m == len(nodes)
+        
+        start = 0
+        for (node, state_durs) in zip(nodes, durations):
+            for dur in state_durs:
+                end = start + dur
+                child = Element(self.child_tag)
+                child.set('start', str(start * self.ms_framerate))
+                child.set('end', str(end * self.ms_framerate))
+                node.add_child(child)
+                
+                start = end
+
+
+
+class NNAcousticPredictor(UtteranceProcessor):
+
+    def load(self): 
+
+        ## Set path to HTS binaries from voice resources:
+        self.hts_dir = self.voice_resources.path[c.BIN]
+
+        self.input_label_filetype = self.config.get('input_label_filetype', 'dnn_lab')
+        self.output_filetype = self.config.get('output_filetype', 'wav')
+        self.question_file_name = self.config.get('question_file', 'questions_dnn.hed.cont')
+        self.variance_expansion = float(self.config.get('variance_expansion', 0.0))
+        self.fill_unvoiced_gaps = int(self.config.get('fill_unvoiced_gaps', 0))
+
+
+
+
+        self.model_dir = os.path.join(self.get_location()) 
+
+        #self.target_nodes = self.config.get('target_nodes', '//segment')
+        #self.ms_framerate = int(self.config.get('ms_framerate', 5))
+        #self.child_tag = self.config.get('child_tag', 'state')
+
+       
+        self.sample_rate = int(self.config.get('sample_rate', 16000))
+        self.alpha=float(self.config.get('alpha', 0.42))
+        self.mcep_order= int(self.config.get('mcep_order', 39))
+
+        
+        ## replicate GetFFTSizeForCheapTrick in src/cheaptrick.cpp:
+        kLog2 = 0.69314718055994529  # set in src/world/constantnumbers.h 
+        f0_floor = 71.0  ## set in analysis.cpp
+        self.fftl = math.pow(2.0, (1.0 + int(math.log(3.0 * self.sample_rate / f0_floor + 1) / kLog2)))
+        
+       
+        try:
+            qfile = os.path.join(self.voice_resources.path[c.TRAIN], self.question_file_name)
+            ## TODO: pack up qfile too
+            self.model = NNAcousticModel(self.model_dir, qfile)
+            self.trained = True
+        except:
+            #sys.exit('Cannot load NN model from model_dir: %s'%self.model_dir)
+            print('Cannot load NN model from model_dir: %s -- not trained yet'%self.model_dir)
+            self.trained = False
+
+
+
+    def do_training(self, speech_corpus, text_corpus):
+        print 'Training of NNAcousticPredictor not supported within Ossian -- use DNN-TSS'
+        if not os.path.isdir(self.model_dir):
+            os.makedirs(self.model_dir)
+        
+    def process_utterance(self, utt):
+        if utt.has_attribute("waveform"):
+            #print "Utt has a natural waveform -- don't synthesise"
+            return
+
+#         if not self.trained:
+#             print 'WARNING: Cannot apply processor %s till model is trained'%(self.processor_name)
+#             return
+        
+        label = utt.get_filename(self.input_label_filetype) 
+        owave = utt.get_filename(self.output_filetype)
+        
+        streams = self.model.generate(label, variance_expansion=self.variance_expansion, \
+                                                fill_unvoiced_gaps=self.fill_unvoiced_gaps)
+        
+        self.world_resynth(streams, owave)
+
+
+    def world_resynth(self, streams, outfile):
+        '''
+        refactored this from AcousticModel. TODO: clean up more, and replace also in AM
+        '''
+        
+        bin_dir = self.hts_dir     ## world here too
+        
+#         alpha = 0.42
+#         order = 39
+#         fftl = 1024
+#         sr = 16000
+
+        alpha = self.alpha # 0.71
+        order = self.mcep_order # 59
+        sr = self.sample_rate # 44100
+        fftl = self.fftl
+      
+        
+        for (stream, data) in streams.items():   
+            put_speech(data, '/tmp/tmp.%s'%(stream))  
+            comm=bin_dir+"/x2x +fd /tmp/tmp."+stream+" >/tmp/tmp_d."+stream
+            print comm
+            os.system(comm)
+
+
+        comm = "%s/mgc2sp -a %s -g 0 -m %s -l %s -o 2 /tmp/tmp.mgc | %s/sopr -d 32768.0 -P | %s/x2x +fd -o > /tmp/tmp.spec"%(bin_dir, alpha, order, fftl, bin_dir, bin_dir)
+        print comm
+        os.system(comm)
+    
+        '''Avoid:   x2x : error: input data is over the range of type 'double'!
+               -o      : clip by minimum and maximum of output data            
+                 type if input data is over the range of               
+                 output data type.
+        '''    
+
+        comm = "%s/synth %s %s /tmp/tmp_d.lf0 /tmp/tmp.spec /tmp/tmp_d.bap /tmp/tmp.resyn.wav"%(bin_dir, fftl, sr)
+        print comm
+        os.system(comm)
+        
+        os.system("mv /tmp/tmp.resyn.wav "+outfile)
+        print 'Produced %s'%(outfile)   
+    
+
+
+def fill_short_unvoiced_gaps(track, gaplength):
+    '''
+    fill in with 1s seqences of zeros up to length gaplength which are surrounded by 1s
+    
+    TODO: look at Antti's util.acoustic_feats -- lots of functions to do this kind of thing
+    '''
+    for i in xrange(len(track)-(gaplength + 1)):
+        start = track[i]
+        end = track[i + (gaplength+1)]
+        if start == 1 and end == 1:
+            for j in xrange(i, i + (gaplength+1)):
+                track[j] = 1
+    return track 
+    
+    
+def wavelet_manipulation(sequence, std_scaling_factors, scale_distance=0.5, num_octaves=12):
+    
+ #   sequence = sequence[:512] 
+#    self.scale_distance = float(self.config.get('scale_distance',0.5))
+#    self.num_octaves = int(self.config.get('num_octaves', 12))
+                        
+    
+    # capetown wavelet package setup
+    s0 = 2 # first scale in number of frames
+    dj = scale_distance # distance of bands in octaves
+    J =  num_octaves #number of octaves
+    maxscale = len(sequence)/(2.0**J) #maximum scale defined as proportion of the signal
+            
+    # perform wavelet transform, select appropriate scale           
+    wavelet_matrix = cwt.MexicanHat(sequence,maxscale,int(1/scale_distance),scaling="log")
+
+    wavelet_matrix = util.cwt_utils.scale_for_reconstruction(wavelet_matrix.getdata(), dj,s0)
+
+    
+    print 'aevbaoivaobdeiv'
+    print np.shape(wavelet_matrix)
+    
+    
+    #wavelet_matrix = wavelet_matrix.getdata()
+
+
+    scales = np.transpose(wavelet_matrix)
+    print np.shape(scales)
+    
+    (m,n) = np.shape(scales)
+    assert len(std_scaling_factors) == n, 'need one std scaling factor for each of %s wavelet scales'%(n)
+    
+    means = np.mean(scales, axis=0)
+    
+    stds = np.std(scales, axis=0)
+    stds = np.maximum(stds, 0.0000001) ## floor to avoid div by 0 problems
+    
+    norm_scales = (scales - means) / stds
+    print np.shape(norm_scales)
+    print np.mean(norm_scales, axis=0)
+    print np.std(norm_scales, axis=0)
+    
+#    norm_scales *= np.array(std_scaling_factors)
+    
+    
+    #sys.exit(np.shape(norm_scales))
+    denormed = (norm_scales * stds) + means
+    
+    recon = np.sum(scales, axis=1)
+    
+    return recon[:len(sequence)]
+
+
+    
+'''
+qfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/questions_dur.hed.cont'
+lfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/lab_dur/19_062.lab_dur'
+n = NNDurationModel('/afs/inf.ed.ac.uk/user/o/owatts/temp/sw6_bib3_DUR', qfile)
+
+#data = numpy.ones((100,233)) * 1.0
+##data = numpy.random.normal(0,0.1,(100,233))
+p = n.generate(lfile)
+print p
+sys.exit('ntbsdbsb')
+'''
+
+'''
+#     
+#n = NN('/afs/inf.ed.ac.uk/user/o/owatts/temp/sw6_bib3_EMI')
+qfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/questions_dnn.hed.cont'
+lfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/dnn_lab/19_062.dnn_lab'
+n = NNAcousticModel('/afs/inf.ed.ac.uk/user/o/owatts/temp/sw6_bib3_EMI', qfile)
+
+#data = numpy.ones((100,233)) * 1.0
+##data = numpy.random.normal(0,0.1,(100,233))
+p = n.generate(lfile, vuv_thresh=0.5, fzero_scale=1.0)
+'''
+
+# qfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/questions_dnn.hed.cont'
+# lfile = '/afs/inf.ed.ac.uk/user/o/owatts/temp/gpu_gen/66_015.dnn_lab'
+# owave = '/afs/inf.ed.ac.uk/user/o/owatts/temp/cpu_gen/66_015.wav'
+# n = NNAcousticModel('/afs/inf.ed.ac.uk/user/o/owatts/temp/sw6_bib3_EMI', qfile)
+# 
+# #data = numpy.ones((100,233)) * 1.0
+# ##data = numpy.random.normal(0,0.1,(100,233))
+# p = n.generate(lfile, owave, vuv_thresh=0.5, fzero_scale=1.0)
+# 
+
+
+'''
+qfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/questions_dnn.hed.cont'
+lfile = '/afs/inf.ed.ac.uk/user/o/owatts/temp/gpu_gen/66_015.dnn_lab_NORM_BIN'
+owave = '/afs/inf.ed.ac.uk/user/o/owatts/temp/cpu_gen/66_015_FROM_NORMLAB.wav'
+n = NNAcousticModel('/afs/inf.ed.ac.uk/user/o/owatts/temp/sw6_bib3_EMI', qfile)
+
+#data = numpy.ones((100,233)) * 1.0
+##data = numpy.random.normal(0,0.1,(100,233))
+p = n.generate_from_norm_binary_lab(lfile, 233, owave, vuv_thresh=0.5, fzero_scale=1.0)
+'''
+'''
+qfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/questions_dnn.hed.cont'
+lfile = '/afs/inf.ed.ac.uk/user/o/owatts/temp/gpu_gen/66_015.dnn_lab_BINONLY'
+owave = '/afs/inf.ed.ac.uk/user/o/owatts/temp/cpu_gen/null.wav'
+n = NNAcousticModel('/afs/inf.ed.ac.uk/user/o/owatts/temp/sw6_bib3_EMI', qfile)
+
+#data = numpy.ones((100,233)) * 1.0
+##data = numpy.random.normal(0,0.1,(100,233))
+p = n.generate_from_norm_binary_lab(lfile, 233, owave, vuv_thresh=0.5, fzero_scale=1.0)
+
+'''
+
+
+
+
+
+

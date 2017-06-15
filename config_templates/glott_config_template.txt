@@ -1,0 +1,172 @@
+#########################################################
+#   Default configuration file for GlottHMM (v. 1.0.7)  #
+#########################################################
+
+
+# Analysis and Synthesis: Common parameters:
+	SAMPLING_FREQUENCY = 		16000;
+	FRAME_LENGTH = 			25.0;
+	UNVOICED_FRAME_LENGTH = 	20.0;
+	F0_FRAME_LENGTH = 		45.0;
+	FRAME_SHIFT = 			5.0;
+	LPC_ORDER = 			30;
+	LPC_ORDER_SOURCE = 		10;
+	WARPING_VT = 			0.0;
+	WARPING_GL = 			0.0;
+	HNR_CHANNELS = 			5;
+	NUMBER_OF_HARMONICS = 		10;
+	SEPARATE_VU_SPECTRUM = 		false;
+	DIFFERENTIAL_LSF = 		false;
+	LOG_F0 = 			false;
+	DATA_FORMAT = 			"ASCII";	# Choose between "ASCII" / "BINARY"
+
+
+
+
+# Noise reduction
+	NOISE_REDUCTION_ANALYSIS = 	false;
+	NOISE_REDUCTION_SYNTHESIS = 	false;
+	NOISE_REDUCTION_LIMIT_DB = 	2.0;
+	NOISE_REDUCTION_DB = 		30.0;
+
+
+
+
+# Analysis:
+	# Analysis: General parameters:
+		PITCH_SYNCHRONOUS_ANALYSIS = 	false;
+		INVERT_SIGNAL = 		false;  	# Remember to set true e.g. for MV voice (it's inverted)
+		HP_FILTERING = 			true;
+		HPFILTER_FILENAME =             "%GLOTT_PATH%/hp_16khz";
+
+	# Analysis: Parameters for F0 estimation:
+		F0_MIN = 			50.0;
+		F0_MAX = 			350.0;
+		VOICING_THRESHOLD = 		100.0;
+		ZCR_THRESHOLD = 		120.0;
+		USE_F0_POSTPROCESSING = 	true;
+		RELATIVE_F0_THRESHOLD = 	0.005;
+		F0_CHECK_RANGE = 		10;
+		USE_EXTERNAL_F0 = 		false;
+		EXTERNAL_F0_FILENAME = 		"filename.F0";
+
+	# Analysis: Parameters for extracting pulse libraries:
+		MAX_NUMBER_OF_PULSES = 		10000;
+		PULSEMAXLEN = 			45.0;
+		RESAMPLED_PULSELEN = 		10.0;
+		WAVEFORM_SAMPLES = 		10;
+		MAX_PULSE_LEN_DIFF = 		0.05;
+		EXTRACT_ONLY_UNIQUE_PULSES =	true;
+		EXTRACT_ONE_PULSE_PER_FRAME =   true;
+
+	# Analysis: Parameters for spectral modeling:
+		USE_IAIF = 			true;
+		LPC_ORDER_GL_IAIF = 		8;		# Order of the LPC analysis for voice source in IAIF
+		USE_MOD_IAIF = 			true;		# Modified version of IAIF
+		LP_METHOD = 			"LPC";		# Select between "LPC" / "WLP" / "XLP"
+		LP_STABILIZED = 		false;
+		LP_WEIGHTING = 			"GCI";		# Select between "STE" / "GCI"
+		FORMANT_PRE_ENH_METHOD = 	"NONE";		# Select between "NONE" / "LSF" / "LPC"
+		FORMANT_PRE_ENH_COEFF = 	0.5;
+		FORMANT_PRE_ENH_LPC_DELTA = 	20.0;		# Only for LPC-based method
+
+	# Analysis: Select parameters to be extracted:
+		EXTRACT_F0 = 			true;
+		EXTRACT_GAIN = 			true;
+		EXTRACT_LSF = 			true;
+		EXTRACT_LSFSOURCE =     	true;
+		EXTRACT_HNR = 			true;
+		EXTRACT_HARMONICS = 		false;
+		EXTRACT_H1H2 = 			false;
+		EXTRACT_NAQ = 			false;
+		EXTRACT_WAVEFORM = 		false;
+		EXTRACT_INFOFILE =		false;
+		EXTRACT_PULSELIB = 		false;
+		EXTRACT_SOURCE = 		false;
+
+
+
+
+# Synthesis:
+	# Synthesis: General parameters:
+		SYNTHESIZE_MULTIPLE_FILES = 	false;
+		SYNTHESIS_LIST = 		"synthesis_list_filename";
+		USE_HMM = 			true;
+
+	# Synthesis: Choose excitation technique and related parameters:
+		USE_PULSE_LIBRARY = 		false;
+		GLOTTAL_PULSE_NAME = 		"%GLOTT_PATH%/pulse";
+		PULSE_LIBRARY_NAME = 		"/afs/inf.ed.ac.uk/group/cstr/projects/simple4all/traitio/GlottHMM/glott_anasyn/mv_20";
+		NORMALIZE_PULSELIB = 		false;
+		USE_PULSE_CLUSTERING = 		false;
+		USE_PULSE_INTERPOLATION = 	true;
+		AVERAGE_N_ADJACENT_PULSES = 	0;
+		ADD_NOISE_PULSELIB = 		true;
+		MAX_PULSES_IN_CLUSTER = 	2000;
+		NUMBER_OF_PULSE_CANDIDATES = 	200;
+		PULSE_ERROR_BIAS = 		0.3;
+		MELSPECTRUM_CHANNELS = 		100;
+		CONCATENATION_COST = 		1.0;
+		TARGET_COST = 			1.0;
+		PARAMETER_WEIGHTS = 		[0.0, 1.0, 1.0, 2.0, 3.0, 5.0, 1.0, 1.0, 1.0, 0.0];
+		# Parameter names   		[LSF  SRC  HARM HNR  GAIN F0   WAV  H1H2 NAQ  PCA/ICA]
+
+	# Synthesis: Select used parameters:
+		# F0, Gain, and LSFs are always used
+		USE_LSFSOURCE = 		true;
+		USE_HNR = 			true;
+		USE_HARMONICS = 		false;
+		USE_H1H2 = 			false;
+		USE_NAQ = 			false;
+		USE_WAVEFORM = 			false;
+		USE_MELSPECTRUM =		false;
+		USE_PULSE_PCA = 		false;
+
+	# Synthesis: Set level and band of voiced noise:
+		NOISE_GAIN_VOICED = 		0.75;
+		NOISE_LOW_FREQ_LIMIT = 		2400.0;		# Hz
+
+	# Synthesis: Smoothing of parameters for analysis-synthesis:
+		LSF_SMOOTH_LEN = 		0;
+		LSFSOURCE_SMOOTH_LEN = 		0;
+		GAIN_SMOOTH_LEN = 		0;
+		HNR_SMOOTH_LEN = 		5;
+		HARMONICS_SMOOTH_LEN = 		0;
+
+	# Synthesis: Gain related parameters:
+		GAIN_UNVOICED = 		1.0;
+		NORM_GAIN_SMOOTH_V_LEN = 	0;
+		NORM_GAIN_SMOOTH_UV_LEN = 	0;
+		GAIN_VOICED_FRAME_LENGTH = 	25.0;
+		GAIN_UNVOICED_FRAME_LENGTH = 	20.0;
+
+	# Synthesis: Postfiltering:
+		POSTFILTER_METHOD = 		"LSF";	# Select between "NONE" / "LSF" / "LPC"
+		POSTFILTER_COEFFICIENT = 	0.5;
+
+	# Synthesis: Utils:
+		USE_HARMONIC_MODIFICATION = 	false;
+		HP_FILTER_F0 = 			false;
+		FILTER_UPDATE_INTERVAL_VT = 	0.3;
+		FILTER_UPDATE_INTERVAL_GL = 	0.05;
+		WRITE_FFT_SPECTRA = 		false;
+		WRITE_EXCITATION_TO_WAV = 	false;
+
+	# Synthesis: Voice adaptation:
+		PITCH = 			1.0;
+		SPEED = 			1.0;
+		JITTER = 			0.0;
+		ADAPT_TO_PULSELIB = 		false;
+		ADAPT_COEFF = 			1.0;
+		USE_PULSELIB_LSF = 		false;
+		NOISE_ROBUST_SPEECH = 		false;
+
+	# Synthesis: Pulse library PCA/ICA:
+		USE_PULSELIB_PCA =		false;
+		PCA_ORDER =			12;
+		PCA_ORDER_SYNTHESIS =		0;
+		PCA_SPECTRAL_MATCHING = 	false;
+		PCA_PULSE_LENGTH = 		800;
+
+
+

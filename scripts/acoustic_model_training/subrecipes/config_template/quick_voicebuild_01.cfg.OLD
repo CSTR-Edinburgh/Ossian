@@ -1,0 +1,43 @@
+
+
+MONOPHONE_SUBSET="1examples"
+SUBSETS="5minutes 1minutes 2minutes "  #  all"
+SHORT_QUESTION_PATT="segment_is"
+
+
+STATIC_STREAM_SIZES="25 1 1 1"
+MSD_STREAM_INFO="0 1 1 1"
+STREAM_WEIGHTS="1.0 0.0 0.0 0.0"  ## best to keep F0 streams turned off for initial alignment
+VFLOORSCALESTR="Vector 4 0.01 0.01 0.01 0.01"
+
+
+STREAMS="1 2-4" ## <--sptk,  ;  "1 2-4 4"  <- straight
+SHORT_STREAM_NAMES="1 2"   #  first digit only! No 5 for SPTK   2_3_4 5 ; do
+
+
+
+NSTATE=5
+
+BINMOD=" "  ## should we write models in binary format? " -B " = yes, " " = no.
+
+
+BEAM=" 5000 5000 10000 "
+STRICT_LABEL_PRUNE=" -e 2 "
+RELAXED_LABEL_PRUNE=" -e 10 "
+
+
+NRECLUSTER=5
+NREEST=5
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,28 @@
+diff -rupN hts_engine_API-1.05/lib/HTS_model.c hts_engine_API-1.05_patched/lib/HTS_model.c
+--- hts_engine_API-1.05/lib/HTS_model.c	2011-07-06 23:59:30.000000000 +0100
++++ hts_engine_API-1.05_patched/lib/HTS_model.c	2014-11-13 13:17:04.000000000 +0000
+@@ -42,6 +42,12 @@
+ /* POSSIBILITY OF SUCH DAMAGE.                                       */
+ /* ----------------------------------------------------------------- */
+ 
++/* ----------------------------------------------------------------- */
++/* This is a modified version of HTS.                                */
++/* Project: Simple4All - October 2014 - www.simple4all.org           */
++/* Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                 */
++/* ----------------------------------------------------------------- */
++
+ #ifndef HTS_MODEL_C
+ #define HTS_MODEL_C
+ 
+@@ -459,8 +465,9 @@ static void HTS_Model_load_pdf(HTS_Model
+    model->ntree = ntree;
+    /* read MSD flag */
+    HTS_fread_big_endian(&i, sizeof(int), 1, fp);
+-   if ((i != 0 || msd_flag != FALSE) && (i != 1 || msd_flag != TRUE))
+-      HTS_error(1, "HTS_Model_load_pdf: Failed to load header of pdfs.\n");
++   /* Remove this check for Ossian (GlottHMM) compatibility: */
++   /*if ((i != 0 || msd_flag != FALSE) && (i != 1 || msd_flag != TRUE))
++      HTS_error(1, "HTS_Model_load_pdf: Failed to load header of pdfs.\n");  */
+    /* read stream size */
+    HTS_fread_big_endian(&ssize, sizeof(int), 1, fp);
+    if (ssize < 1)

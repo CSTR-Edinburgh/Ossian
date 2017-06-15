@@ -1,0 +1,392 @@
+diff -u htk_MOD/HTKLib/HModel.c htk_MOD/HTKLib/HModel.c
+--- htk_MOD/HTKLib/HModel.c	2013-11-27 15:18:53.000000000 +0000
++++ htk_MOD/HTKLib/HModel.c	2013-12-04 11:51:12.000000000 +0000
+@@ -77,6 +77,12 @@
+ /* POSSIBILITY OF SUCH DAMAGE.                                       */
+ /* ----------------------------------------------------------------- */
+ 
++/* ----------------------------------------------------------------- */
++/* This is a modified version of HTK and HTS.                        */
++/* Project: Simple4All - November 2013 - www.simple4all.org          */
++/* Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                 */
++/* ----------------------------------------------------------------- */
++
+ char *hmodel_version = "!HVER!HModel:   3.4.1 [CUED 12/03/09]";
+ char *hmodel_vc_id = "$Id: HModel.c,v 1.44 2012/12/22 07:01:28 uratec Exp $";
+ 
+@@ -3159,7 +3165,7 @@
+          if (rSum==0.0)
+             HError(7031,"PutTransMat: Row %d of transition mat is all zero",i);
+          if (rSum < 0.99 || rSum > 1.01)
+-            HError(7031,"PutTransMat: Row %d of transition mat sum = %f\n",i,rSum);
++            HError(-7031,"PutTransMat: Row %d of transition mat sum = %f\n",i,rSum);
+          for (j=1; j<=nstates;j++)
+             v[j] /= rSum;
+       }
+diff -u htk_MOD/configure.ac htk_MOD/configure.ac
+--- htk_MOD/configure.ac	2013-11-27 15:18:53.000000000 +0000
++++ htk_MOD/configure.ac	2013-12-04 11:49:33.000000000 +0000
+@@ -65,6 +65,12 @@
+ # POSSIBILITY OF SUCH DAMAGE.                                       #
+ # ----------------------------------------------------------------- #
+ 
++# ----------------------------------------------------------------- #
++## This is a modified version of HTK and HTS.                       #
++## Project: Simple4All - November 2013 - www.simple4all.org         #
++## Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                #
++# ----------------------------------------------------------------- #
++
+ # After editing this file, run "autoconf" to regenerate "configure".
+ 
+ AC_INIT(HTS,2.3 alpha, hts-users@sp.nitech.ac.jp)
+@@ -261,7 +267,7 @@
+ esac
+ 
+ dnl define MAXSTRLEN if users want to change it to other value
+-AC_ARG_VAR([MAXSTRLEN],[max length of strings (default=1024)])
++AC_ARG_VAR([MAXSTRLEN],[max length of strings (default=2048)])
+ if test -n "$MAXSTRLEN" -a $MAXSTRLEN!=1024; then
+ 	AC_MSG_CHECKING(user-defined maximum length of strings)
+ 	CFLAGS="$CFLAGS -DMAXSTRLEN=$MAXSTRLEN"
+diff -u htk_MOD/HTKTools/HHEd.c htk_MOD/HTKTools/HHEd.c
+--- htk_MOD/HTKTools/HHEd.c	2013-11-27 16:15:41.000000000 +0000
++++ htk_MOD/HTKTools/HHEd.c	2013-12-04 11:51:07.000000000 +0000
+@@ -77,6 +77,12 @@
+ /* POSSIBILITY OF SUCH DAMAGE.                                       */
+ /* ----------------------------------------------------------------- */
+ 
++/* ----------------------------------------------------------------- */
++/* This is a modified version of HTK and HTS.                        */
++/* Project: Simple4All - November 2013 - www.simple4all.org          */
++/* Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                 */
++/* ----------------------------------------------------------------- */
++
+ char *hhed_version = "!HVER!HHEd:   3.4.1 [CUED 12/03/09]";
+ char *hhed_vc_id = "$Id: HHEd.c,v 1.114 2012/12/22 07:01:31 uratec Exp $";
+ 
+@@ -4788,6 +4794,8 @@
+ }
+ 
+ /* ----------------- CM - Convert HMMSets to PDF --------------- */
++/* ossian: reverted this HHEd function back to HTS 2.2 for comptibility with
++   hts_engine 1.05 */
+ void ConvertModelsCommand(void)
+ {
+    Boolean out[SMAX], first;
+@@ -4842,14 +4850,24 @@
+                         sSize++;
+                      }
+                   if (first) {
+-                     /* fopen */
++                     /* write header */
+                      sprintf(ext,"%d",s);
+                      MakeFN(head,dn,ext,fn);
+                      if ((file=FOpen(fn,NoOFilter,&isPipe))==NULL)
+                         HError(2611,"ConvertModels: Cannot create output file %s",fn);
++                     if(hset->msdflag[s])
++                        k=1;
++                     else
++                        k=0;
++                     WriteInt(file, &k, 1, TRUE);
++                     WriteInt(file, &sSize, 1, TRUE);
++                     WriteInt(file, &vSize, 1, TRUE); 
++                     printf("write ssize %d \n", sSize);
++                     printf("write vsize %d \n", vSize);
+                      first=FALSE;
+                   }
+                   WriteInt(file, &tree->nLeaves, 1, TRUE);
++                printf("write tree->nLeaves %d \n", tree->nLeaves);
+                }
+             }
+          }
+@@ -4869,26 +4887,13 @@
+                   
+                   /* output array */
+                   for (j=1; j<=tree->nLeaves; j++) {
+-                     /* write mean */
+                      for (k=0; k<tree->nActiveStr; k++) {
+                         if (IsFullSet(tree->streams))
+                            sti = ((StateInfo *)array[j]->macro[0]->structure)->pdf[k+1].info; /* state tying */
+                         else
+                            sti = (StreamInfo *)array[j]->macro[k]->structure;                 /* stream tying */
+                         vSize = VectorSize(sti->spdf.cpdf[1].mpdf->mean);
+-                        for (v=1; v<=vSize; v++) {
+-                           mean = sti->spdf.cpdf[1].mpdf->mean[v];
+-                           WriteFloat(file, &mean, 1, TRUE);
+-                        }
+-                     }
+-                     /* wirte variance */
+-                     for (k=0; k<tree->nActiveStr; k++) {
+-                        if (IsFullSet(tree->streams))
+-                           sti = ((StateInfo *)array[j]->macro[0]->structure)->pdf[k+1].info; /* state tying */
+-                        else
+-                           sti = (StreamInfo *)array[j]->macro[k]->structure;                 /* stream tying */
+-                        vSize = VectorSize(sti->spdf.cpdf[1].mpdf->mean);
+-                        for (v=1; v<=vSize; v++) {
++                        for (v=1; v<=VectorSize(sti->spdf.cpdf[1].mpdf->mean); v++) {
+                            switch (sti->spdf.cpdf[1].mpdf->ckind) {
+                            case DIAGC:
+                               vari = sti->spdf.cpdf[1].mpdf->cov.var[v];
+@@ -4902,16 +4907,11 @@
+                            default:
+                               HError(999,"ConvertModels: not supported CovKind");
+                            }
++                           mean = sti->spdf.cpdf[1].mpdf->mean[v];
++                           /* output mean & variance value */
++                           WriteFloat(file, &mean, 1, TRUE);
+                            WriteFloat(file, &vari, 1, TRUE);
+                         }
+-                     }
+-                     /* write MSD weight */
+-                     for (k=0; k<tree->nActiveStr; k++) {
+-                        if (IsFullSet(tree->streams))
+-                           sti = ((StateInfo *)array[j]->macro[0]->structure)->pdf[k+1].info; /* state tying */
+-                        else
+-                           sti = (StreamInfo *)array[j]->macro[k]->structure;                 /* stream tying */
+-                        vSize = VectorSize(sti->spdf.cpdf[1].mpdf->mean);
+                         /* for multi space probability distribution */
+                         if (sti->nMix>1) {
+                            if (vSize!=hset->swidth[sti->stream])
+@@ -4919,7 +4919,8 @@
+                            /* output space weight */
+                            weight = sti->spdf.cpdf[1].weight;
+                            WriteFloat(file, &weight, 1, TRUE);
+-                           break;
++                           weight = 1-weight;
++                           WriteFloat(file, &weight, 1, TRUE);
+                         }
+                      }
+                   }
+diff -u htk_MOD/HTKLib/HFB.c htk_MOD/HTKLib/HFB.c
+--- htk_MOD/HTKLib/HFB.c	2013-11-26 17:23:59.000000000 +0000
++++ htk_MOD/HTKLib/HFB.c	2013-12-04 11:50:54.000000000 +0000
+@@ -77,6 +77,12 @@
+ /* POSSIBILITY OF SUCH DAMAGE.                                       */
+ /* ----------------------------------------------------------------- */
+ 
++/* ----------------------------------------------------------------- */
++/* This is a modified version of HTK and HTS.                        */
++/* Project: Simple4All - November 2013 - www.simple4all.org          */
++/* Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                 */
++/* ----------------------------------------------------------------- */
++
+ char *hfb_version = "!HVER!HFB:   3.4.1 [CUED 12/03/09]";
+ char *hfb_vc_id = "$Id: HFB.c,v 1.55 2012/12/22 07:01:28 uratec Exp $";
+ 
+@@ -342,7 +348,7 @@
+ /* EXPORT->InitialiseForBack: IniInitialise the forward backward memory stacks and make initialisations  */
+ void InitialiseForBack(FBInfo *fbInfo, MemHeap *x, HMMSet *hset, UPDSet uFlags_hmm, HMMSet *dset, UPDSet uFlags_dur, 
+                        LogDouble pruneInit, LogDouble pruneInc, LogDouble pruneLim, 
+-                       float minFrwdP, Boolean useAlign, Boolean genDur)
++                       float minFrwdP, int useAlign, Boolean genDur)   /* ossian */
+ {
+    int s;
+    AlphaBeta *ab;
+@@ -382,8 +388,8 @@
+       if (pruneSetting.pruneInc != 0.0)
+          printf("Pruning-On[%.1f %.1f %.1f]\n", pruneSetting.pruneInit, 
+                 pruneSetting.pruneInc, pruneSetting.pruneLim);
+-      else if (fbInfo->useAlign)
+-         printf("Pruning-On[Alignment]\n");
++      else if (fbInfo->useAlign >= 0)  /* ossian */
++         printf("Pruning-On[Alignment with %d frames tolerance]\n", fbInfo->useAlign);  /* ossian */
+       else
+          printf("Pruning-On[%.1f]\n", pruneSetting.pruneInit);
+    else
+@@ -1544,7 +1550,7 @@
+ }
+ 
+ /* SetAlignBeam: set beam start and end points according to given model alignment */
+-static void SetAlignBeam (AlphaBeta *ab, PruneInfo *p, UttInfo *utt)
++static void SetAlignBeam (AlphaBeta *ab, PruneInfo *p, UttInfo *utt, int AlignTolerance) /* ossian */  
+ {
+    LabList *lablist;
+    LLink lab;
+@@ -1581,6 +1587,19 @@
+       /* arrange alignment */ 
+       SetAlign(st, en, ab->qDms, Q, T);
+       
++      /* ossian -- added this block*/
++      /* add tolerance to the pruning, and check not out of range */
++      if (AlignTolerance > 0) {
++        for (q=1; q<=Q; q++) {
++            st[q] = st[q] - AlignTolerance;
++            if (st[q]<0)
++                st[q] = 0;            
++            en[q] = en[q] + AlignTolerance;
++            if (en[q]>T)
++                en[q] = T;
++        }
++      }
++
+       /* set beam width (qLo and qHi) according to start and end time */
+       for (t=2; t<T; t++) {
+          /* set qHi */
+@@ -1826,8 +1845,8 @@
+          }
+          CreateBeta(ab,utt->T);
+          SetBeamTaper(p,ab->qDms,utt->Q,utt->T);
+-         if (fbInfo->useAlign)
+-            SetAlignBeam(ab, p, utt);
++         if (fbInfo->useAlign >= 0)  /* ossian */
++            SetAlignBeam(ab, p, utt, fbInfo->useAlign);  /* ossian */
+          CreateOtprob(ab,utt->T);
+          lbeta=SetBeta(ab,fbInfo,utt);
+          if (lbeta>LSMALL) break;
+diff -u htk_MOD/HTKLib/HFB.h htk_MOD/HTKLib/HFB.h
+--- htk_MOD/HTKLib/HFB.h	2013-11-26 17:41:30.000000000 +0000
++++ htk_MOD/HTKLib/HFB.h	2013-12-04 11:51:02.000000000 +0000
+@@ -64,6 +64,12 @@
+ /* POSSIBILITY OF SUCH DAMAGE.                                       */
+ /* ----------------------------------------------------------------- */
+ 
++/* ----------------------------------------------------------------- */
++/* This is a modified version of HTK and HTS.                        */
++/* Project: Simple4All - November 2013 - www.simple4all.org          */
++/* Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                 */
++/* ----------------------------------------------------------------- */
++
+ /* !HVER!HFB:   3.4.1 [CUED 12/03/09] */
+ 
+ #ifndef _HFB_H_
+@@ -143,7 +149,7 @@
+ /* structure storing the model set and a pointer to it's alpha-beta pass structure */
+ typedef struct {
+   Boolean twoModels;  /* Enable two model reestimation */
+-  Boolean useAlign;   /* Using model alignment */
++  int useAlign;   /* Using model alignment */   /* ossian */
+   HMMSet *up_hset;    /* set of HMMs to be re-estimated */
+   HMMSet *al_hset;    /* HMMs to use for alignment */
+                       /* these are equal unless 2 model reest */
+@@ -184,7 +190,7 @@
+ /* Initialise the forward backward memory stacks etc */
+ void InitialiseForBack(FBInfo *fbInfo, MemHeap *x, HMMSet *hset, UPDSet uFlags_hmm, HMMSet *dset, UPDSet uFlags_dur,
+                        LogDouble pruneInit, LogDouble pruneInc, LogDouble pruneLim, 
+-                       float minFrwdP, Boolean useAlign, Boolean genDur);
++                       float minFrwdP, int useAlign, Boolean genDur); /* ossian */
+ 
+ /* Use a different model set for alignment */
+ void UseAlignHMMSet(FBInfo* fbInfo, MemHeap* x, HMMSet *al_hset, HMMSet *al_dset);
+diff -u htk_MOD/HTKTools/HERest.c htk_MOD/HTKTools/HERest.c
+--- htk_MOD/HTKTools/HERest.c	2013-11-27 15:29:17.000000000 +0000
++++ htk_MOD/HTKTools/HERest.c	2013-12-04 11:50:43.000000000 +0000
+@@ -77,6 +77,12 @@
+ /* POSSIBILITY OF SUCH DAMAGE.                                       */
+ /* ----------------------------------------------------------------- */
+ 
++/* ----------------------------------------------------------------- */
++/* This is a modified version of HTK and HTS.                        */
++/* Project: Simple4All - November 2013 - www.simple4all.org          */
++/* Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                 */
++/* ----------------------------------------------------------------- */
++
+ char *herest_version = "!HVER!HERest:   3.4.1 [CUED 12/03/09]";
+ char *herest_vc_id = "$Id: HERest.c,v 1.51 2012/12/22 07:01:31 uratec Exp $";
+ 
+@@ -148,7 +154,7 @@
+ static Boolean saveBinary = FALSE;  /* save output in binary  */
+ static Boolean ldBinary = TRUE;        /* load/dump in binary */
+ static Boolean applyVFloor = FALSE;  /* variance flooring */
+-static Boolean useAlign = FALSE;     /* use model alignment from label */
++static int useAlign = -1;     /* use model alignment from label: -1 turns off, >=0 means # frames tolerance -- i.e. 0 means no tolerance */  /* ossian */
+ static FileFormat dff=UNDEFF;       /* data file format */
+ static FileFormat lff=UNDEFF;       /* label file format */
+ static int updateMode = UPMODE_UPDATE; /* dump summed accs, update models or do both? */
+@@ -317,7 +323,10 @@
+    printf(" -b      Use an input linear transform for dur models      off\n");
+    printf(" -c f    Mixture pruning threshold            10.0\n");
+    printf(" -d s    dir to find hmm definitions          current\n");
+-   printf(" -e      use model alignment from label for pruning        off\n");
++   printf(" -e n    use model alignment from label for pruning         off\n");   /* ossian */
++   printf("         n is 'tolerance': number of frames left and right\n");        /* ossian */
++   printf("         of label boundaries which a given model can occupy in FB.\n");  /* ossian */
++   printf("         Set to 0 to prune to label boundaries exactly  \n");          /* ossian */
+    printf(" -f s    extension for new duration model files            as src\n");
+    printf(" -g s    output duration model to file s                   none\n");
+    printf(" -h s    set output speaker name pattern   *.%%%%%%\n");
+@@ -491,7 +500,7 @@
+             HError(2319,"HERest: HMM definition directory expected");
+          hmmDir = GetStrArg(); break;   
+       case 'e':
+-         useAlign = TRUE; break;
++         useAlign = GetChkedInt(0,100,s); break; /* ossian */
+       case 'm':
+          minEgs = GetChkedInt(0,1000,s); break;
+       case 'o':
+diff -u htk_MOD/HTKTools/HSMMAlign.c htk_MOD/HTKTools/HSMMAlign.c
+--- htk_MOD/HTKTools/HSMMAlign.c	2013-11-27 15:30:21.000000000 +0000
++++ htk_MOD/HTKTools/HSMMAlign.c	2013-12-04 11:51:18.000000000 +0000
+@@ -38,6 +38,12 @@
+ /* POSSIBILITY OF SUCH DAMAGE.                                       */
+ /* ----------------------------------------------------------------- */
+ 
++/* ----------------------------------------------------------------- */
++/* This is a modified version of HTK and HTS.                        */
++/* Project: Simple4All - November 2013 - www.simple4all.org          */
++/* Contact: Oliver Watts - owatts@staffmail.ed.ac.uk                 */
++/* ----------------------------------------------------------------- */
++
+ char *hsmmalign_version = "!HVER!HSMMAlign: 2.2 [NIT 07/07/11]";
+ char *hsmmalign_vc_id = "$Id: HSMMAlign.c,v 1.13 2012/12/22 07:01:31 uratec Exp $";
+ 
+@@ -96,7 +102,7 @@
+ static LogDouble pruneLim = NOPRUNE;    /* pruning threshold limit */
+ static double hsmmDurWeight = 1.0;      /* duration weight of state duration model */
+ static Boolean stateAlign = FALSE;      /* align flag */
+-static Boolean pruneFrame = FALSE;      /* prune hypo by using time information of label */
++static int pruneFrame = -1;      /* prune hypo by using time information of label */ /*ossian*/
+ static int minModelDur = 1;     /* minimum model duration */
+ 
+ /* Statistics */
+@@ -330,7 +336,11 @@
+    printf(" -a      Use an input linear transform for HMMs            off\n");
+    printf(" -b      Use an input linear transform for dur models      off\n");
+    printf(" -d s    Dir to find hmm definitions                       current\n");
+-   printf(" -e      Prune by time information of label                off\n");
++   printf(" -e      Prune by time information of label -- tolerance added as in HERest off\n");  /* ossian */
++   printf(" -e n    Prune by time information of label;               off\n");   /* ossian */
++   printf("         n is 'tolerance': number of frames left and right\n");        /* ossian */
++   printf("         of label boundaries where new model boundaries are allowed.\n");  /* ossian */
++   printf("         Set to 0 to prune to label boundaries exactly  \n");          /* ossian */
+    printf(" -f      Output full state alignment                       off\n");
+    printf(" -g s    Dir to output prob per stream                     none\n");
+    printf(" -h s [s] Set speaker name pattern to s,                   *.%%%%%%\n");
+@@ -405,7 +415,7 @@
+          break;
+       case 'c':
+       case 'e':
+-         pruneFrame = TRUE;
++         pruneFrame = GetChkedInt(0, 1000, s); /* ossian */
+          break;
+       case 'f':
+          stateAlign = TRUE;
+@@ -765,7 +775,7 @@
+    }
+ 
+    /* set alignment */
+-   if (pruneFrame == TRUE) {
++   if (pruneFrame > -1) {  /* ossian */
+       st = (long *) New(&tmpStack, utt->Q * sizeof(long));
+       en = (long *) New(&tmpStack, utt->Q * sizeof(long));
+       md = (short *) New(&tmpStack, utt->Q * sizeof(short));
+@@ -784,6 +794,20 @@
+       }
+       /* get time */
+       SetAlign(st, en, md, utt->Q, utt->T);
++      
++      /* ossian -- added this block */
++      /* add tolerance to the pruning, and check not out of range */
++      if (pruneFrame > 0) {
++        for (q=1; q<=utt->Q; q++) {
++            st[q] = st[q] - pruneFrame;
++            if (st[q]<0)
++                st[q] = 0;            
++            en[q] = en[q] + pruneFrame;
++            if (en[q]>utt->T)
++                en[q] = utt->T;
++        }
++      }      
++      
+       /* set time */
+       for (llink = utt->tr->head->head, tmp_state = sseq.head, q = 1; llink != NULL; llink = llink->succ) {
+          if (llink->labid != NULL) {
