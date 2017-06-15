@@ -560,10 +560,12 @@ class NNDurationPredictor(SUtteranceProcessor):
         print 'use Merlin to train on the prepared data'
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
-        
-        conf_file = os.path.join(self.model_dir, 'config.cfg')
-        write_merlin_config('duration', conf_file)
-        print 'Wrote config file to %s -- edit as appropriate and use for training'%(conf_file)
+
+
+        ### TODO: write config file like this??:--        
+        # conf_file = os.path.join(self.model_dir, 'config.cfg')
+        # write_merlin_config('duration', conf_file)
+        # print 'Wrote config file to %s -- edit as appropriate and use for training'%(conf_file)
 
             
 ### previously: print 'Ossian only extracts binary NN inputs and outputs:'
@@ -662,10 +664,11 @@ class NNAcousticPredictor(SUtteranceProcessor):
         print 'use Merlin to train on the prepared data'
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
-        
-        conf_file = os.path.join(self.model_dir, 'config.cfg')
-        write_merlin_config('acoustic', conf_file)
-        print 'Wrote config file to %s -- edit as appropriate and use for training'%(conf_file)
+
+        ## TODO: write aconfig automatically???:-        
+        # conf_file = os.path.join(self.model_dir, 'config.cfg')
+        # write_merlin_config('acoustic', conf_file)
+        # print 'Wrote config file to %s -- edit as appropriate and use for training'%(conf_file)
 
     def process_utterance(self, utt):
         if utt.has_attribute("waveform"):

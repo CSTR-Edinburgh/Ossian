@@ -1,8 +1,16 @@
 #!/bin/bash 
 
+### This installs everything needed for the naive recipe:
 BASIC=1
+
+### The following are only needed to train letter-to-sound rules, and for the gold standard english systems:
 SEQUITUR=0 
 STANFORD=0
+
+
+# TODO: check wget is available
+
+
 
 ## Location of this script:-
 SCRIPTPATH=$( cd $(dirname $0) ; pwd -P )
@@ -19,6 +27,10 @@ if [ $BASIC == 1 ] ; then
     HTK_USERNAME=$1
     HTK_PASSWORD=$2
 
+    ## Assuming that you want to compile everything cleanly from scratch:
+    rm -rf $OSSIAN/tools/downloads/*
+    rm -rf $OSSIAN/tools/bin/*
+
     cd $OSSIAN/tools/
     git clone https://github.com/CSTR-Edinburgh/merlin.git
     cd merlin
@@ -30,15 +42,11 @@ if [ $BASIC == 1 ] ; then
     make -f makefile
     make -f makefile analysis
     make -f makefile synth
-    mkdir $OSSIAN/tools/bin/
+    mkdir -p $OSSIAN/tools/bin/
     cp $OSSIAN/tools/merlin/tools/WORLD/build/{analysis,synth} $OSSIAN/tools/bin/
 
-    echo 'stop early'
-    exit 1
-
-    ## Assuming that you want to compile everything cleanly from scratch:
-    rm -rf $OSSIAN/tools/downloads/*
-    rm -rf $OSSIAN/tools/bin/*
+    # echo 'stop early'
+    # exit 1
 
     ## Make sure these locations exist:
     mkdir -p $OSSIAN/tools/bin
@@ -90,6 +98,7 @@ if [ $BASIC == 1 ] ; then
     cd SPTK-3.6
     ./configure --prefix=$OSSIAN/tools/
 
+    ## TODO: fix this to not need clang on Linux
     ## To compile on Mac, modify Makefile for delta tool:
     mv ./bin/delta/Makefile ./bin/delta/Makefile.BAK
     sed 's/CC = gcc/CC = clang/' ./bin/delta/Makefile.BAK > ./bin/delta/Makefile     ## (see http://sourceforge.net/p/sp-tk/bugs/68/)

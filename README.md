@@ -4,8 +4,6 @@
 
 # Ossian + DNN demo
 
-TODO:
-OSSIAN variable
 
 This repository contains a stripped-down and more up-to-date version of Ossian than that which is publicly 
 available. It forms the basis of a toolkit whose repository we plan to make public this summer, so all
@@ -14,8 +12,37 @@ comments and feedback about ways to improve it are very welcome.
 
 # Getting the tools
 
-[put some notes here -- compilation etc. ]
 
+Clone the Ossian github repository as follows:
+
+```
+git clone https://github.com/oliverwatts/Ossian2.git
+```
+
+This will create a directory called ```./Ossian2```; 
+the following discussion assumes that an environment
+variable ```$OSSIAN``` is set to point to this directory.
+
+Ossian relies on the [Hidden Markov Model Toolkit (HTK)](http://htk.eng.cam.ac.uk) and [HMM-based Speech Synthesis System (HTS)](http://hts.sp.nitech.ac.jp/)
+for alignment and (optionally) acoustic modelling -- here are some notes on obtaining and compiling the necessary tools. 
+To get a copy of the HTK source code it
+is necessary to register on the [HTK website](http://htk.eng.cam.ac.uk/register.shtml) to obtain a 
+username and password. It is here assumed that these have been obtained and the environment
+variables ```$HTK_USERNAME``` and ```$HTK_PASSWORD``` point to them.
+
+
+Running the following script will download and install the necessary tools (including Merlin):
+
+```
+./scripts/setup_tools.sh $HTK_USERNAME $HTK_PASSWORD
+```
+
+Josh: the above script basically runs the setup you did following the online docs; extra parts are obtaining merlin, and compiling merlin's world.
+
+
+# Overview of package layout
+
+[TODO: put some notes about what's in the various folders here]
 
 # Acquire some data
 
@@ -26,15 +53,30 @@ Ossian expects its training data to be in the directories:
  ./corpus/<LANG>/speakers/<DATA_NAME>/wav/*.wav
 ```
 
-Text and wave files should be numbered consistently with each other. ```<LANG>``` and ```<DATA_NAME>``` are both arbitrary strings, but it is sensible to choose ones which make obvious sense. Take a look at a toy (Romanian) corpus distributed with the tools for some guidance:
+Text and wave files should be numbered consistently with each other. ```<LANG>``` and ```<DATA_NAME>``` are both arbitrary strings, but it is sensible to choose ones which make obvious sense. 
+
+Download and unpack this toy (Romanian) corpus for some guidance:
+
+```
+cd $OSSIAN
+wget https://www.dropbox.com/s/uaz1ue2dked8fan/romanian_toy_demo_corpus_for_ossian.tar?dl=0
+tar xvf romanian_toy_demo_corpus_for_ossian.tar\?dl\=0
+```
+
+TODO: put this and other demo data in some other more permanent central location.
+
+This will create the following directory structures:
 
 ```
 ./corpus/rm/speakers/rss_toy_demo/
+./corpus/rm/text_corpora/wikipedia_10K_words/
 ```
 
 Let's start by building some voices on this tiny dataset. The results will sound bad, but if you can get it to speak, no matter how badly, the tools are working and you can retrain on more data of your own choosing.
 
 You can download 1 hour sets of data in various languages we prepared here: http://tundra.simple4all.org/ssw8data.html
+
+TODO: prepare these datasets and others and make available in the central location. Maybe Kyrgyz too? ;-)
 
 # A) HMM-based voice
 
@@ -75,6 +117,9 @@ mkdir $OSSIAN/test/wav/
 python ./scripts/speak.py -l rm -s rss_toy_demo -o ./test/wav/romanian_toy_HTS.wav naive_01_hts ./test/txt/romanian.txt
 ```
 
+You can find the audio for this sentence [here](https://www.dropbox.com/s/xm9d7j7125y6j13/romanian_test_sentence_reference.wav?dl=0) for comparison (it was not used in training).
+
+
 # B) NN-based voice
 
 Use the recipe naive_01_nn to build a NN-based voice. If you compare naive_01_hts and naive_01_nn, you will see that many steps are the same. The differences are that state-level labels suitable for NN training are produced instead of phone-level labels for HTS training, and instead of specifying an HTS acoustic model, NN-based duration and acoustic models are specified.
@@ -99,8 +144,11 @@ The 'composed' features (acoustic features files containing multiple streams and
 ... are similar but not identical to the ones we will use for NN training. Main differences: Ossian's files contain HTK headers and a single discontinuous F0 feature, whereas Merlin's can't handle the header and use F0 interpolated through unvoiced regions and a separate voiced/unvoiced feature. The static features inside Ossian's cmp files are fine, however, so to avoid extracting them a second time, we can split the cmp file into streams and keep only the static parts of those streams. To do so, call the following script:
 
 ```
-./scripts/shell/split_cmp.py -cmp train/rm/speakers/rss_toy_demo/naive_01_nn/cmp/ -out train/rm/speakers/rss_toy_demo/naive_01_nn/dnn_streams -streams mgc,lf0,bap -widths 60,1,5
+./scripts/shell/split_cmp.py -cmp train/rm/speakers/rss_toy_demo/naive_01_nn/cmp/ -out train/rm/speakers/rss_toy_demo/naive_01_nn/dnn_streams -streams mgc,lf0,bap -widths 40,1,1
 ```
+
+TODO: should be 60,1,5?
+
 
 The flag 'widths' is used to say what the dimensions of your extracted feature streams are. The dimension of mgc will be mcep_order in your Ossian config + 1 for energy; lf0 will always be 1; bap will depend on sample rate, e.g. at 16000Hz it will be 1, at 48000Hz it will be 5.
 
@@ -114,11 +162,23 @@ bap can be worked out from the sample rate using this formula in Python:
 ... where rate is a variable giving the sample rate you specified in the Ossian recipe file (this comes to 5 for the 48000 Hz used in naive_01_nn, hence the above command line).
 -->
 
-If this worked OK, data for the separate streams will have been output in subdirectories of train/rm/speakers/rss_toy_demo/naive_01_nn/dnn_streams, and the path to this directory will be used as an input in NN training (below).
+If this worked OK, data for the separate streams will have been output in subdirectories of 
+
+```
+train/rm/speakers/rss_toy_demo/naive_01_nn/dnn_streams
+```
+
+and the path to this directory will be used as an input in NN training (below).
 
 ## 2) Duration features
 
-Take a look at the duration data output at train/rm/speakers/rss_toy_demo/naive_01_nn/dur_data/*. Each line of these text files represents the durations (in frames) of the 5 HMM states in a phone/letter segment. To use this data with the DNN training, we need to flatten this to a single column and convert to binary (float) format:
+Take a look at the duration data output at 
+
+```
+train/rm/speakers/rss_toy_demo/naive_01_nn/dur_data/*
+```
+
+Each line of these text files represents the durations (in frames) of the 5 HMM states in a phone/letter segment. To use this data with the DNN training, we need to flatten this to a single column and convert to binary (float) format:
 
 ```
 cd $OSSIAN/train/rm/speakers/rss_toy_demo/naive_01_nn/
@@ -169,12 +229,29 @@ wc -l filelist.txt
 
 To train each of the acoustic and duration models, you will need to prepare a config file. Examples are given under $OSSIAN/scripts/merlin_interface/, named feed_forward_dnn_ossian.conf and feed_forward_dnn_ossian_DUR.conf. Make a copy of these for each voice you train and adjust as necessary. I have added comments to help: lines starting ##!!! precede lines you will probably have to adjust for your own data, lines starting ## without the !!! I put there just to give you some more information about what the following line does.
 
+I needed to comment out line 1128 of $OSSIAN/tools/merlin/src/run_merlin.py to be able to train on CPU, i.e.:
+
+```
+    logger.info('    THEANO_FLAGS: '+os.getenv('THEANO_FLAGS'))
+```
+
+became:
+
+
+```
+#    logger.info('    THEANO_FLAGS: '+os.getenv('THEANO_FLAGS'))
+```
+
+TODO: talk with Srikanth to fix this properly.
+
 After copying and adjusting feed_forward_dnn_ossian_DUR.conf, try training a model like this (but using whatever name you gave your modified config):
 
 ```
 cd $OSSIAN/
 python ./tools/merlin/src/run_merlin.py ./scripts/merlin_interface/feed_forward_dnn_ossian_DUR.conf
 ```
+
+When training the duration model, there will be loads of warnings saying ```WARNING: no silence found!``` --  theses are not a problem and can be ignored.
 
 If training went OK, then you can export the trained model to a better format for Ossian. The basic problem is that the NN-TTS tools store the model as a Python pickle file -- if this is made on a GPU machine, it can only be used on a GPU machine. This script converts to a more flexible format understood by Ossian -- call it with the same config file you used for training and the name of a directory when the new format should be put:
 
@@ -187,7 +264,7 @@ Repeat the same for the acoustic model:
 ```
 cd $OSSIAN/
 python ./tools/merlin/src/run_merlin.py ./scripts/merlin_interface/feed_forward_dnn_ossian.conf
-python ./scripts/util/store_merlin_model.py ./recipes/dnn/feed_forward_dnn_ossian.conf $OSSIAN/voices/rm/rss_toy_demo/naive_01_nn/processors/acoustic_predictor
+python ./scripts/util/store_merlin_model.py ./scripts/merlin_interface/feed_forward_dnn_ossian.conf $OSSIAN/voices/rm/rss_toy_demo/naive_01_nn/processors/acoustic_predictor
 ```
 
 
@@ -203,8 +280,11 @@ python ./scripts/speak.py -l rm -s rss_toy_demo -o ./test/wav/romanian_toy_DNN.w
 You can compare the audio produced by the HTS system previously (./test/wav/romanian_toy_HTS.wav) with that produced by the DNN system (./test/wav/romanian_toy_DNN.wav)
 
 
-## Etc etc
+## Please stop reading here!
 
+The rest of this document is a graveyard for old notes which might be turned into useful material, but are not yet fit for public consumption...
+
+## Graveyard
 
 
 
