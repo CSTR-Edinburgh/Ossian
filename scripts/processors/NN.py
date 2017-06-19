@@ -154,7 +154,7 @@ class NN(object):
 
 class NNAcousticModel(NN):
     ## add speech specific stuff, like splitting into streams and param gen
-    def __init__(self, model_dir, question_file_name, silence_pattern='/3:sil/'):
+    def __init__(self, model_dir, question_file_name, silence_pattern='/2:sil/'):  ## TODO: where to handle silence pattern? Currently fragile
         super(NNAcousticModel, self).__init__(model_dir)
         self.load_stream_info()
         self.label_expander = HTSLabelNormalisation(question_file_name=question_file_name)
@@ -171,12 +171,14 @@ class NNAcousticModel(NN):
 
     
     def get_silent_feature_indices(self, question_file_name, silence_pattern):
+        print 'get_silent_feature_indices'
         indices = []
         questions = [q for q in readlist(question_file_name) if q != '']
         questions = [q for q in questions if 'CQS' not in q]
         for (i, question) in enumerate(questions):
             if silence_pattern in question:
                 indices.append(i)
+                print 'silence question found:'
                 print question
         return indices
         
@@ -234,6 +236,7 @@ class NNAcousticModel(NN):
                 else:  ## for e.g. vuv
                     statics[stream] = data
             streams = statics
+
 
         if enforce_silence:
             for (stream, data) in streams.items():
@@ -314,10 +317,9 @@ class NNAcousticModel(NN):
 #             streams['vuv'] = vuv
 #             
 
-
         if enforce_silence:
             for (stream, data) in streams.items():
-                silent_frames = numpy.sum(input[:,self.silent_feature_indices], axis=1)                
+                silent_frames = numpy.sum(input[:,self.silent_feature_indices], axis=1)                  
                 data[silent_frames == 1.0, :] = 0.0
                 streams[stream] = data
                         

@@ -9,6 +9,27 @@ This repository contains a stripped-down and more up-to-date version of Ossian t
 available. It forms the basis of a toolkit whose repository we plan to make public this summer, so all
 comments and feedback about ways to improve it are very welcome. 
 
+# Python dependencies
+
+Use the ```pip``` package installer -- within a [Python ```virtualenv```](https://virtualenv.pypa.io/en/stable/) as necessary -- to get some necessary packages:
+
+```
+pip install numpy
+pip install scipy
+pip install configobj
+pip install scikit-learn
+pip install regex
+pip install lxml
+pip install argparse
+```
+
+We will use Merlin toolkit to train neural networks, creating the following dependencies:
+
+```
+pip install bandmat 
+pip install theano
+```
+
 
 # Getting the tools
 
@@ -37,12 +58,9 @@ Running the following script will download and install the necessary tools (incl
 ./scripts/setup_tools.sh $HTK_USERNAME $HTK_PASSWORD
 ```
 
-Josh: the above script basically runs the setup you did following the online docs; extra parts are obtaining merlin, and compiling merlin's world.
+Josh: the above script basically runs the setup you did following the [(now-outdated) online docs](http://homepages.inf.ed.ac.uk/owatts/ossian/html/setting_up.html); extra parts are obtaining merlin, and compiling merlin's world.
 
 
-# Overview of package layout
-
-[TODO: put some notes about what's in the various folders here]
 
 # Acquire some data
 
@@ -144,10 +162,8 @@ The 'composed' features (acoustic features files containing multiple streams and
 ... are similar but not identical to the ones we will use for NN training. Main differences: Ossian's files contain HTK headers and a single discontinuous F0 feature, whereas Merlin's can't handle the header and use F0 interpolated through unvoiced regions and a separate voiced/unvoiced feature. The static features inside Ossian's cmp files are fine, however, so to avoid extracting them a second time, we can split the cmp file into streams and keep only the static parts of those streams. To do so, call the following script:
 
 ```
-./scripts/shell/split_cmp.py -cmp train/rm/speakers/rss_toy_demo/naive_01_nn/cmp/ -out train/rm/speakers/rss_toy_demo/naive_01_nn/dnn_streams -streams mgc,lf0,bap -widths 40,1,1
+./scripts/shell/split_cmp.py -cmp train/rm/speakers/rss_toy_demo/naive_01_nn/cmp/ -out train/rm/speakers/rss_toy_demo/naive_01_nn/dnn_streams -streams mgc,lf0,bap -widths 60,1,5
 ```
-
-TODO: should be 60,1,5?
 
 
 The flag 'widths' is used to say what the dimensions of your extracted feature streams are. The dimension of mgc will be mcep_order in your Ossian config + 1 for energy; lf0 will always be 1; bap will depend on sample rate, e.g. at 16000Hz it will be 1, at 48000Hz it will be 5.
@@ -267,6 +283,8 @@ python ./tools/merlin/src/run_merlin.py ./scripts/merlin_interface/feed_forward_
 python ./scripts/util/store_merlin_model.py ./scripts/merlin_interface/feed_forward_dnn_ossian.conf $OSSIAN/voices/rm/rss_toy_demo/naive_01_nn/processors/acoustic_predictor
 ```
 
+One key variable to alter in Merlin's config files is ```training_epochs```. This is set very low for demo purposes; when training a voice on a database of reasonable size, this could be set to e.g. 30 for the acoustic model and e.g. 100 for the duration model.
+
 
 ## 5) Synthesis
 
@@ -280,7 +298,20 @@ python ./scripts/speak.py -l rm -s rss_toy_demo -o ./test/wav/romanian_toy_DNN.w
 You can compare the audio produced by the HTS system previously (./test/wav/romanian_toy_HTS.wav) with that produced by the DNN system (./test/wav/romanian_toy_DNN.wav)
 
 
-## Please stop reading here!
+# TODO list
+
+## Documentation & recipes
+
+- [ ] test and add lexicon recipes
+- [ ] test and add English gold standard recipe
+- [ ] test and add recipes with VSM 
+
+
+## Other
+
+- [ ] Include sample_rate, alpha and mcep_order in coding config shared between processors
+
+# Please stop reading here!
 
 The rest of this document is a graveyard for old notes which might be turned into useful material, but are not yet fit for public consumption...
 
