@@ -1,5 +1,5 @@
 diff -u htk_MOD/HTKLib/HModel.c htk_MOD/HTKLib/HModel.c
---- htk_MOD/HTKLib/HModel.c	2013-11-27 15:18:53.000000000 +0000
+--- htk_MOD/HTKLib/HModel.c	2017-06-21 15:59:25.000000000 +0100
 +++ htk_MOD/HTKLib/HModel.c	2013-12-04 11:51:12.000000000 +0000
 @@ -77,6 +77,12 @@
  /* POSSIBILITY OF SUCH DAMAGE.                                       */
@@ -14,6 +14,15 @@ diff -u htk_MOD/HTKLib/HModel.c htk_MOD/HTKLib/HModel.c
  char *hmodel_version = "!HVER!HModel:   3.4.1 [CUED 12/03/09]";
  char *hmodel_vc_id = "$Id: HModel.c,v 1.44 2012/12/22 07:01:28 uratec Exp $";
  
+@@ -315,7 +321,7 @@
+          sum += exp((float)sti->spdf.dpdf[m]/DLOGSCALE);
+       break;
+    }
+-   if (sum<0.99 || sum>1.01){
++   if (sum<0.95 || sum>1.05){
+       HRError(7031,"CheckStream: %s: Mix weights sum %e for s=%d, j=%d",
+               defName,sum,s,n);
+       return(FAIL);
 @@ -3159,7 +3165,7 @@
           if (rSum==0.0)
              HError(7031,"PutTransMat: Row %d of transition mat is all zero",i);
