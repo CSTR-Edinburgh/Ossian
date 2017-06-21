@@ -169,6 +169,7 @@ class WorldExtractor(SUtteranceProcessor):
         comm = "sox -t wav " + infile
         comm += " -c 1 -e signed-integer "
         comm += " -r %s"%(rate)
+        comm += " -b 16 "  
         comm += " " + outfile + ".wav"
         comm += " dither"   ## added for hi and rj data blizz 2014
         success = os.system(comm)
