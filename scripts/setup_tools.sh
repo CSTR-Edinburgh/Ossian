@@ -136,6 +136,16 @@ if [ $SEQUITUR == 1 ] ; then
     rm -r g2p-r1668-r3.tar.gz
     cd g2p
 
+    if [ `uname -s` == Darwin ] ; then
+        # Patch to avoid compilation problems on Mac OS relating to tr1 libraries like this:
+        #
+        # In file included from ./Multigram.hh:33:
+        # ./UnorderedMap.hh:26:10: fatal error: 'tr1/unordered_map' file not found
+        # #include <tr1/unordered_map>     
+        echo 'Apply patch to sequitur for compilation on Mac OS...'
+        patch -p1 -d . < ../patch/sequitur_compilation.patch
+    fi
+
     ## Compile:
     python setup.py install --prefix  $OSSIAN/tools
 

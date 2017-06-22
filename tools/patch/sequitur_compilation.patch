@@ -1,0 +1,22 @@
+diff -rupN g2p/setup.py g2p_MOD/setup.py
+--- g2p/setup.py	2016-04-26 11:15:27.000000000 +0100
++++ g2p_MOD/setup.py	2017-06-22 11:46:30.000000000 +0100
+@@ -62,8 +62,17 @@ sequiturExtension = Extension(
+         'Translation.cc'],
+     include_dirs = [
+         os.path.join(path, 'core/include') for path in numpy.__path__ ],
++    # Add to extra_compile_args and extra_linker_args to avoid compilation problems on Mac OS relating to tr1 libraries like this:
++    #
++    # In file included from ./Multigram.hh:33:
++    # ./UnorderedMap.hh:26:10: fatal error: 'tr1/unordered_map' file not found
++    # #include <tr1/unordered_map>    
++    #         
+     extra_compile_args = [
+-        '-fpermissive'],
++        '-fpermissive',
++        '-stdlib=libstdc++'],
++    extra_link_args = [
++         '-stdlib=libstdc++'],        
+     swig_opts = [
+         '-c++', '-shadow']
+     )
