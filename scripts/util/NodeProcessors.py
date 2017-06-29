@@ -60,6 +60,45 @@ def add_children(node, child_tag="Token", parent_attribute="text", \
             child.set(child_attribute, chunk)
             node.add_child(child)
 
+
+def add_syllable_structure(node, pronunciation, syllable_delimiter='|', syllable_tag='syllable', phone_tag='segment',\
+                            pronunciation_attribute='pronunciation', stress_attribute='stress'):
+    '''
+    Take pronunciations in this form:
+        "k w ay1 | ax0 t | n ax0 s"
+    Add syllables and segments under the node, and break off stress marks as separate syllable feature like this:
+
+    '''
+    sylls = re.split('\s*%s\s*'%(re.escape(syllable_delimiter)), pronunciation)
+    for syll in sylls:
+        phones = re.split('\s+', syll)
+        clean_phones = []
+        stress_marks = []
+        for phone in phones:
+            if phone == '':
+                contine
+            if phone.endswith('0') or phone.endswith('1') or phone.endswith('2'):
+                stress_marks.append(phone[-1])
+                phone = phone.strip('012')
+            clean_phones.append(phone)
+        if len(stress_marks) == 0:
+            print 'WARNING: no stress mark in syllable "%s"'%(syll)
+            stress_marks = ['0']
+        elif len(stress_marks) > 1:
+            print 'WARNING: multiple stress marks in syllable "%s" -- take the first'%(syll)
+        stress = stress_marks[0]
+        syll_node = Element(syllable_tag)
+        syll_node.set(pronunciation_attribute, syll)
+        syll_node.set(stress_attribute, 'stress_'+stress)
+        node.add_child(syll_node)
+        for phone in clean_phones:
+            phone_node = Element(phone_tag)
+            phone_node.set(pronunciation_attribute, phone)
+            syll_node.add_child(phone_node)
+
+
+
+
 def add_end_padding(node, **padding_attributes):
 
     ## Make a padding node:

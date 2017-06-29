@@ -334,7 +334,9 @@ class Voice(object):
         '''
         unparallelisable_classes = ['BasicStanfordCoreNLP', 'Lexicon'] ## lexicon parallelises very slowly --
                                 ## see: http://stackoverflow.com/questions/20727375/multiprocessing-pool-slower-than-just-using-ordinary-functions
-        
+        ### ^---- TODO: this is now unsed
+
+
         i = 1
         for processor in self.processors:
             #print processor
@@ -345,8 +347,8 @@ class Voice(object):
             if not processor.trained:  
                 ## has a suitable component already been trained?
                 if os.path.isdir(processor.component_path):
-                    print "Copy existing component for processor " + processor.processor_name
-                    processor.reuse_component()
+                    print "Copy existing component for processor " + processor.processor_name                    
+                    processor.reuse_component(self.res)
                 else:
                     print "Train processor " + processor.processor_name
                     processor.train(speech_corpus, text_corpus)
@@ -354,7 +356,7 @@ class Voice(object):
             print "          Applying processor " + processor.processor_name
             if self.max_cores > 1: pool = multiprocessing.Manager().Pool(self.max_cores)
             for utterance_file in speech_corpus:                
-                if self.max_cores > 1 and str(processor.__class__).split('.')[-1] not in unparallelisable_classes:
+                if self.max_cores > 1 and processor.parallelisable:
                         result = pool.apply_async(processor, args=(utterance_file, self.res.make_dir(c.TRAIN, "utt"), self.run_mode))                        
                 else:
                     utterance = Utterance(utterance_file, utterance_location=self.res.make_dir(c.TRAIN, "utt"))

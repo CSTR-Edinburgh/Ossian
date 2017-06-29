@@ -23,14 +23,18 @@ import default.const as c
 from processors.NodeEnricher import NodeEnricher
 from processors.UtteranceProcessor import SUtteranceProcessor
 
+from UtteranceProcessor import Element
+
 from util.LookupTable import LookupTable
 
 from naive.naive_util import readlist, writelist
 
+import util.NodeProcessors as NodeProcessors
+
 class Lexicon(SUtteranceProcessor):
 
     def __init__(self, processor_name='lexicon', target_nodes="//token", \
-                target_attribute='text', child_node_type='segment', output_attribute='pronunciation', \
+                target_attribute='text', part_of_speech_attribute='pos', child_node_type='segment', output_attribute='pronunciation', \
                 class_attribute='token_class', word_classes=['word'], probable_pause_classes=['punctuation', c.TERMINAL], \
                 possible_pause_classes=['space'], \
                 dictionary='some_dictionary_name', backoff_pronunciation='axr',lts_variants=1,\
@@ -39,6 +43,7 @@ class Lexicon(SUtteranceProcessor):
         self.processor_name = processor_name
         self.target_nodes = target_nodes
         self.target_attribute = target_attribute
+        self.part_of_speech_attribute = part_of_speech_attribute
         self.child_node_type = child_node_type
         self.output_attribute = output_attribute
         self.class_attribute = class_attribute
@@ -60,6 +65,7 @@ class Lexicon(SUtteranceProcessor):
 
         super(Lexicon, self).__init__()
 
+        self.parallelisable = False ## poor parallelisation due to sequitur (## see: http://stackoverflow.com/questions/20727375/multiprocessing-pool-slower-than-just-using-ordinary-functions)
 
     def verify(self, voice_resources):
         self.voice_resources = voice_resources
@@ -211,21 +217,26 @@ class Lexicon(SUtteranceProcessor):
 
             if current_class in self.word_classes:
                 word = node.attrib[self.target_attribute]
-                (children, method) = self.get_phonetic_segments(word)
+                pos = node.attrib.get(self.part_of_speech_attribute, None) # default to None 
+                (pronunciation, method) = self.get_phonetic_segments(word, part_of_speech=pos)
                 node.set('phones_from', method)
+                NodeProcessors.add_syllable_structure(node, pronunciation, syllable_delimiter='|', syllable_tag='syllable', \
+                                phone_tag='segment', pronunciation_attribute='pronunciation', stress_attribute='stress')
             elif current_class in self.probable_pause_classes:
-                children = [c.PROB_PAUSE]
+                pronunciation = c.PROB_PAUSE # [c.PROB_PAUSE]
+                child = Element('segment')
+                child.set('pronunciation', pronunciation)
+                node.add_child(child)
             elif current_class in self.possible_pause_classes:
-                children = [c.POSS_PAUSE]
+                pronunciation = c.POSS_PAUSE # [c.POSS_PAUSE]
+                child = Element('segment')
+                child.set('pronunciation', pronunciation)
+                node.add_child(child)                
             else:
                 sys.exit('Class "%s" not in any of word_classes, probable_pause_classes, possible_pause_classes')
-            for chunk in children:
-                child = Element(self.child_node_type)
-                child.set(self.output_attribute, chunk)
-                node.add_child(child)
 
 
-    def get_phonetic_segments(self, word):
+    def get_phonetic_segments(self, word, part_of_speech=None):
             
         word = word.lower()
         word = word.strip("'\" ;,")
@@ -241,11 +252,11 @@ class Lexicon(SUtteranceProcessor):
             else:
                 ## filter ambiguous pronunciations by first part of tag (POS):
                 ## if there *is* no POS, take first in list:
-                if 'pos' not in node.attrib:
-                    print 'WARNING: no pos tag to disambiguate pronunciation -- take first entry in lexicon'
+                if not part_of_speech: 
+                    print 'WARNING: no pos tag to disambiguate pronunciation of "%s" -- take first entry in lexicon'%(word)
                     tag, pronunciation = self.entries[word][0] #take first
                 else:
-                    wordpos = node.attrib['pos'].lower()
+                    wordpos = part_of_speech.lower() # node.attrib['pos']
                     filtered = [(tag, pron) for (tag,pron) in self.entries[word] \
                                                                  if tag[0] == wordpos]
                     if len(filtered) == 0:

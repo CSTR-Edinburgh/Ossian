@@ -161,6 +161,7 @@ class SUtteranceProcessor(object):
     def __init__(self):
 
         self.trained = False
+        self.parallelisable = True
         self.component_path = ''  ## will be set by subclasses to the location of suitable trained 
         
         ## name of attribute at utt root node, used as condition of processing:
@@ -274,12 +275,12 @@ class SUtteranceProcessor(object):
             os.makedirs(training)
         return training
         
-    def reuse_component(self):
+    def reuse_component(self, voice_resources):
         assert self.component_path != ''
         model_location = self.get_location()
         shutil.rmtree(model_location)  
         shutil.copytree(self.component_path, model_location)
-        self.load()
+        self.verify(voice_resources)
         
     def __call__(self, utterance_file, utterance_location, mode):
         utterance = Utterance(utterance_file, utterance_location=utterance_location)
