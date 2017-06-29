@@ -298,6 +298,80 @@ python ./scripts/speak.py -l rm -s rss_toy_demo -o ./test/wav/romanian_toy_DNN.w
 You can compare the audio produced by the HTS system previously (./test/wav/romanian_toy_HTS.wav) with that produced by the DNN system (./test/wav/romanian_toy_DNN.wav)
 
 
+
+# Neural net voice with lexicon (version 1)
+
+
+Use the recipe lex_01_nn to build a NN-based voice using a pronunciation lexicon. To try this out
+in English (whose orthography means that a lexicon is needed to get decent results), obtain a toy
+English corpus like this:
+
+```
+cd $OSSIAN
+
+wget https://www.dropbox.com/s/shh0jjl0v5vk36q/english_toy_demo_corpus_for_ossian.tar?dl=0
+tar xvf english_toy_demo_corpus_for_ossian.tar\?dl\=0
+```
+
+There should now be a small corpus of English speech and text here:
+
+```
+corpus/en/speakers/tundra_toy_demo/
+```
+
+and an example English lexicon here:
+
+```
+corpus/en/labelled_corpora/cmudict/
+```
+
+Note that the name of this directory (cmudict) is the lexicon name which will
+be specified in a recipe. The dictionary entries are contained (in 
+Festival's Scheme format) in a file in the lexicon directory ending in .out, in this case:
+
+```
+cmudict.out
+```
+
+Information about the phones in the dictionary is given in a phoneset description --
+a file in the lexicon directory ending .table, in this case:
+
+```
+cmudict_phones.table 
+```
+
+This is a lookup table of phonetic features of each phone. The only feature (column) which
+is required for the lexicon to be applied is vowel_cons -- vowels must have the value 
+'vowel' in this column. (This is used for determining a set of legal onsets which is
+then used for syllabifying unseen words.)
+
+The file called letter.names gives the pronunciation of letters -- we will not use this 
+here, but if you make your own lexicon, please include a copy of this file (for English
+phoneset even) to keep the tools happy.   
+
+To build and run voices using a lexicon, you will need a letter-to-sound model to handle 
+out-of-vocabulary words. For this, we will use the joint multigram implementation 
+[Sequitur](https://www-i6.informatik.rwth-aachen.de/web/Software/g2p.html). Please adjust the flags
+in the script ```./scripts/setup_tools.sh``` as follows:
+
+```
+BASIC=0
+SEQUITUR=1
+STANFORD=0
+```
+
+... and run the script again to obtain and install Sequitur. 
+
+The recipe lex_01_nn.cfg adds this lexicon on top of naive_01_nn.cfg. Try it out on
+English data like this:
+
+```
+python ./scripts/train.py -s tundra_toy_demo -l en lex_01_nn
+```
+
+(...and then build DNN duration and acoustic models as before).
+
+
 # TODO list
 
 ## Documentation & recipes
@@ -317,58 +391,6 @@ The rest of this document is a graveyard for old notes which might be turned int
 
 ## Graveyard
 
-
-
-
-
-
-The file extra_parts_ossian_lexicon.tar contains some extra binaries and other resources
-for building voices using a lexicon and letter-to-sound rules. Copy it into your Ossian
-directory and unpack it like this to put everything in place:
-
-cd Ossian
-tar xvf extra_parts_ossian_lexicon.tar 
-
-There is an extra small corpus of English here:
-
-corpus/en/speakers/tundra_toy_demo/
-
-and an example toy lexicon here:
-
-corpus/en/labelled_corpora/cmudict_demo/
-
-Note that the name of this directory (cmudict_demo) is the lexicon name which will
-be specified in a recipe. This toy lexicon contains 1000 randomly selected entries from the
-CMU pronunciation lexicon for demonstration purposes. These entries are contained (in 
-Festival's Scheme format) in a file in the lexicon directory ending in .out, in this case:
-
-cmudict_demo.out
-
-Note that I have been careful to include only 1 pronunciation for each word form -- you
-can in theory include multiple forms and then disambiguate by POS tag, but the recipe 
-included doesn't have access to POS tags. The second element in each lexicon entry
-is a POS tag, which in this case can be some arbitrary placeholder.
-
-Information about the phones in the dictionary are given in a phoneset description --
-a file in the lexicon directory ending .table, in this case:
-
-cmudict_phones.table 
-
-This is a lookup table of phonetic features of each phone. The only feature (column) which
-is required for the lexicon to be applied is vowel_cons -- vowels must have the value 
-'vowel' in this column. (This is used for determining a set of legal onsets which is
-then used for syllabifying unseen words.)
-
-The file called letter.names gives the pronunciation of letters -- we will not use this 
-here, but if you make your own lexicon, please include a copy of this file (for English
-phoneset even) to keep the tools happy.   
-
-The recipe msc_demo_03.cfg adds this lexicon on top of naive_01_nn.cfg. Try it out on
-English data like this:
-
-python ./scripts/train.py -s tundra_toy_demo -l en msc_demo_03
-
-(...and then build DNN duration and acoustic models as before).
 
 You can try adding a lexicon for you own language. Also, many features added during 
 lexicon lookup are not exploited in the duration and acoustic model input features in
@@ -392,6 +414,8 @@ directory and unpack it like this:
 
 cd Ossian
 tar xvf extra_parts_ossian_lexicon_B.tar 
+
+
 
 
 
