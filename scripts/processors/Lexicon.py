@@ -371,7 +371,10 @@ class Lexicon(SUtteranceProcessor):
         dict_location = os.path.join(self.voice_resources.path[c.LANG], 'labelled_corpora', self.dictionary)
 
         ## phoneset
-        phonetable_file = glob.glob(os.path.join(dict_location, '*.table'))[0] ## take first 
+        phonetable_files = glob.glob(os.path.join(dict_location, '*.table'))
+        if phonetable_files == []:
+            sys.exit('Cannot find any phone table files at %s'%(os.path.join(dict_location, '*.table')))
+        phonetable_file = phonetable_files[0] ## take first 
         shutil.copy(phonetable_file, self.phoneset_fname)
         ## load phoneset now for converting lexicon:
         self.phoneset = LookupTable(self.phoneset_fname, is_phoneset=True)

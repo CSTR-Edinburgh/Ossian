@@ -456,3 +456,204 @@ class FeatureDumperWithSubstates(FeatureDumper):
                 ## these returned values will be ignored. But these can be used to
                 ## acccumulate questions and features over the whole corpus for  
                 ## training (see train() method).    
+
+
+
+class MappedFeatureDumper(FeatureDumper):
+
+    '''
+    Allow features to be mapped to vector representations (sparse or dense) using mapper based on e.g. phone table or VSM.
+    All output features are assumed to be numerical; a trivial question file (consisting of all CQS) is written to keep Merlin happy.
+    TODO: assert all features *are* numerical on extraction.
+    '''
+
+    def __init__(self, **kwargs):
+
+        super(MappedFeatureDumper, self).__init__(**kwargs)
+
+        ## separate contexts and mappers:--
+        self.mappers = {}
+        contexts_without_mappers = []
+        for (i,context) in enumerate(self.contexts):
+            if len(context) == 3:
+                contexts_without_mappers.append(context[:2])
+                self.mappers[i] = context[2]
+            else:
+                assert len(context) == 2
+                contexts_without_mappers.append(context)
+        self.contexts = contexts_without_mappers
+
+        ## make list of names with all features mapped:
+        self.mapped_feature_names = []
+        for (i, (name, xpath)) in enumerate(self.contexts):
+            if i in self.mappers:
+                mapped_names = [name + ':' + field_name for field_name in self.mappers[i].feature_names]
+                self.mapped_feature_names.extend(mapped_names)
+            else:
+                self.mapped_feature_names.append(name)
+
+        self.number_of_features = len(self.mapped_feature_names)
+
+    def process_utterance(self, utt):
+        #print('!!! in MappedFeatureDumper::process_utterance')
+        utt_data = []
+        
+        nodelist = utt.xpath(self.target_nodes)
+        if nodelist == []:            
+            print('WARNING: FeatureDumper\'s target_nodes matches no nodes: %s'%(self.config["target_nodes"]))
+
+        for node in nodelist:
+            node_data = self.get_node_context_label(node)
+            utt_data.append(node_data)
+
+        label_file = utt.get_filename(self.output_filetype)
+        writelist(utt_data, label_file, uni=True)
+
+
+
+    def do_training(self, speech_corpus, text_corpus):
+        """
+        'Training' a feature dumper means writing a question file 
+        In the case of mapped feature dumper, all features are assumed to be numerical, so this is trivial
+        """
+        self.question_file_path = self.voice_resources.get_filename(self.question_file, c.TRAIN)
+
+        if os.path.isfile(self.question_file_path):  
+            print 'FeatureDumper already trained -- questions exist:'
+            print self.question_file_path
+            return
+       
+        self.make_simple_continuous_questions(self.question_file_path)
+                                 
+    def make_simple_continuous_questions(self, outfile):
+     
+        cont_qlist = []  ## write continuous questions about numerical features  
+        key_list = []
+        
+        for (number, name) in enumerate(self.mapped_feature_names):
+                
+            ## NB_  special regex to handle decimal point! --
+            cont_qlist.append("CQS %s {*/%s:([\d\.]+)/*}"%(name, number))
+            key_list.append("/%s:\t%s"%(number, name))
+
+        writelist(cont_qlist, outfile + '.cont', uni=True)
+
+        key_file = outfile + ".key"
+        writelist(key_list, key_file, uni=True)    
+        
+        
+    def get_node_context_label(self, node):
+
+        #print('in MFD get_node_context_label')
+        context_vector = node.get_context_vector(self.contexts) 
+
+        mapped_context_vector = []
+        for (i, (name, value)) in enumerate(context_vector):
+            if i in self.mappers:
+                #mapped_names = [name + '=' + field_name for field_name in self.mappers[i].feature_names]
+                mapped_values = self.mappers[i].lookup(value)
+                # mapped_context_vector.extend(zip(mapped_names, mapped_values))
+                mapped_context_vector.extend(mapped_values)
+            else:
+                mapped_context_vector.append(value)
+
+ 
+        ## add numbers:
+        assert len(mapped_context_vector) == self.number_of_features
+
+        context_vector = zip(range(self.number_of_features), self.mapped_feature_names, mapped_context_vector)
+
+    
+        # At this point, context_vector looks like this:
+        #
+        # [(0, u'll_segment:cmanner=affric', 0.0), (1, u'll_segment:cmanner=approx', 0.0), (2, u'll_segment:cmanner=fric', 0.0), (3, u'll_segment:cmanner=lateral', 0.0), (4, u'll_segment:cmanner=nasal', 1.0), (5, u'll_segment:cmanner=stop', 0.0), (6, u'll_segment:cplace=alveolar', 0.0),
+        if self.context_separators=="numbers":
+            
+            formatted_context_vector = ["%s:%s"%(number, value) 
+                    for (number, name, value) in context_vector]       
+            formatted_context_vector = "/".join(formatted_context_vector)
+            formatted_context_vector = "/" + formatted_context_vector + "/" 
+            
+
+        else:
+            if self.context_separators=="spaces":
+                separator = " "
+            elif self.context_separators=="commas":
+                separator = ","
+            else:
+                sys.exit("'%s' not a recognised separator"%(self.context_separators))
+
+            formatted_context_vector = [str(value) for (number, name, value) in context_vector]                   
+            formatted_context_vector = separator.join(formatted_context_vector)            
+
+        if self.htk_monophone_xpath:                
+            ## PREpend an extra monophone feature -- appending will screw up
+            ## extraction of sentence level contexts, which (currently) are
+            ## assumed to be at the end of the model name:
+            htk_monophone = node.safe_xpath(self.htk_monophone_xpath)
+            formatted_context_vector = "-%s+%s"%(htk_monophone, formatted_context_vector)
+            ## Don't need to add this to context questions -- just used for 
+            ## extracting monophones, not context clustering. 
+            ## TODO: find a neater way to handle this? Don't rely on HTK's 
+            ## inbuilt monophone extractor in the HTS-Training script?
+                               
+        if self.htk_state_xpath:                
+            ## Increment to start state count at 2 as in HTK
+            htk_state = node.safe_xpath(self.htk_state_xpath)
+            formatted_context_vector = "%s[%s]"%(formatted_context_vector, htk_state + 1)
+                               
+        if self.start_time_xpath and self.end_time_xpath:
+            start_time = node.safe_xpath(self.start_time_xpath)
+            end_time = node.safe_xpath(self.end_time_xpath)
+
+            ## safe_xpath will give _NA_ when times are absent (i.e at runtime) --
+            ## in this case, omit times:
+
+            if not (start_time=="_NA_" or end_time=="_NA_"):
+
+                start_time = string.ljust(str(ms_to_htk(start_time)), 10)
+                end_time = string.ljust(str(ms_to_htk(end_time)), 10)
+
+                formatted_context_vector = "%s %s %s"%(start_time, end_time, formatted_context_vector)        
+        return formatted_context_vector
+
+
+    def filter_contexts(self):
+        """
+        Handle special names : start_time end_time htk_monophone htk_state
+        """
+        self.start_time_xpath = None 
+        self.end_time_xpath = None
+        self.htk_monophone_xpath = None    
+        self.htk_state_xpath = None
+
+        filtered_contexts= []
+        
+        for line in self.contexts:
+            use_mapper = False
+            if len(line) == 3:
+                use_mapper = True
+                (name, pattern, mapper) = line
+            elif len(line) == 2:
+                (name, pattern) = line
+            else:
+                sys.exit('context must either be of form (name, pattern) or (name, pattern, mapper)')
+            if name == 'start_time':
+                self.start_time_xpath = pattern
+            elif name == 'end_time':
+                self.end_time_xpath = pattern
+            elif name == 'start_time':
+                self.start_time_xpath = pattern
+            elif name == 'htk_monophone':
+                self.htk_monophone_xpath = pattern
+            elif name == 'htk_state':
+                self.htk_state_xpath = pattern
+            else:
+                if use_mapper:
+                    filtered_contexts.append((name, pattern, mapper))                                    
+                else:
+                    filtered_contexts.append((name, pattern))                                    
+
+        self.contexts = filtered_contexts
+                                    
+          
