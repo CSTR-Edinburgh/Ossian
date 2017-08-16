@@ -341,11 +341,12 @@ class Utterance(object):
         ##print "Write utterance to %s ..."%(fname)
         ElementTree(self.data).write(fname, encoding="utf-8", pretty_print=True)
 
-    def archive(self, fname=None):
+    def archive(self, fname=None, visualise=True):
         """
         Store an archived version of an utterance that will not be overwritten,
         and also a PDF of a visualisation.
         """    
+
         if not fname:
             fname = self.get_utterance_filename()
 
@@ -355,7 +356,6 @@ class Utterance(object):
         while os.path.isfile(fname + "." + str(i).zfill(6) + ".archive"):                
             i += 1
         fname = fname + "." + str(i).zfill(6) + ".archive"
-
         self.save(fname=fname)    
         self.visualise(fname + ".pdf")
 
@@ -451,7 +451,6 @@ class Utterance(object):
         :keyword force_rows: put nodes with same tag on same vertical level -- true by default
         :keyword full_label: plot all node attributes -- true by default, otherwise, just safetext
         """
-        
         graphviz_data = ['graph "G"{ \n node [style=rounded]']
 
         node_list = self.all_nodes() ## nodes in document order
@@ -476,7 +475,14 @@ class Utterance(object):
                     label = "%s:\\n%s"%(node.tag, node.get("safetext"))
             
             else:
-                label = ["%s: %s"%(attribute, value) for (attribute, value) in node.items()]   
+                ## strip characters which will break dot ("):
+                bad_characters = ['"']
+                data = []
+                for (attribute, value) in node.items():
+                    for character in bad_characters:
+                        value = value.replace(character, '')
+                    data.append((attribute, value)) 
+                label = ["%s: %s"%(attribute, value) for (attribute, value) in data]   
                 label = "\\n".join(label)
                 label = node.tag + "\\n" + label
       
@@ -511,8 +517,7 @@ class Utterance(object):
         writelist(graphviz_data, dotfile, uni=True)
 
         image_type = image_file[-3:]
-        comm = "dot %s -T%s -o%s"%(dotfile, image_type, image_file)
-        
+        comm = "dot %s -T%s -o%s"%(dotfile, image_type, image_file)     
         os.system(comm)
         
 
