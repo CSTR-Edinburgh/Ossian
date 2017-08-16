@@ -154,7 +154,13 @@ class WorldExtractor(SUtteranceProcessor):
         ## else extract features
         infile = utt.get("waveform")
         outfile = utt.get_filename(self.output_filetype)
-        
+
+        ## strip suffix .cmp:-
+        assert outfile.endswith('.' + self.output_filetype)
+        chars_to_strip = len(self.output_filetype)+1
+        outstem = outfile[:-chars_to_strip]
+
+
         rate = self.rate
         sample_rate=self.rate
         alpha=self.alpha
@@ -170,77 +176,78 @@ class WorldExtractor(SUtteranceProcessor):
         comm += " -c 1 -e signed-integer "
         comm += " -r %s"%(rate)
         comm += " -b 16 "  
-        comm += " " + outfile + ".wav"
+        comm += " " + outstem + ".wav"
         comm += " dither"   ## added for hi and rj data blizz 2014
         success = os.system(comm)
         if success != 0:
             print 'sox failed on utterance ' + utt.get("utterance_name")
             return
        
-        comm = "%s/analysis %s.wav %s.f0.double %s.sp.double %s.ap.double &> %s.log"%(self.tool, outfile, outfile, outfile, outfile, outfile)
+        comm = "%s/analysis %s.wav %s.f0.double %s.sp.double %s.bap.double &> %s.log"%(self.tool, outstem, outstem, outstem, outstem, outstem)
         success = os.system(comm)
+        #print comm
         if success != 0:
             print 'world analysis failed on utterance ' + utt.get("utterance_name")
             return
        
         if self.resynthesise_training_data:
             ## resynthesis to test
-            comm = "%s/synth %s %s %s.f0.double %s.sp.double %s.ap.double %s.resyn.wav  &> %s.log"%(self.tool, fftl, rate, outfile, outfile, outfile, outfile, outfile)
+            comm = "%s/synth %s %s %s.f0.double %s.sp.double %s.bap.double %s.resyn.wav  &> %s.log"%(self.tool, fftl, rate, outstem, outstem, outstem, outstem, outstem)
             success = os.system(comm)
             if success != 0:
                 print 'world synthesis failed on utterance ' + utt.get("utterance_name")
                 return       
        
-        comm = "%s/x2x +df %s.sp.double | %s/sopr -R -m 32768.0 | %s/mcep -a %s -m %s -l %s -j 0 -f 0.0 -q 3 > %s.mgc"%(self.tool, outfile, self.tool, self.tool, alpha, order, fftl, outfile)
+        comm = "%s/x2x +df %s.sp.double | %s/sopr -R -m 32768.0 | %s/mcep -a %s -m %s -l %s -j 0 -f 0.0 -q 3 > %s.mgc"%(self.tool, outstem, self.tool, self.tool, alpha, order, fftl, outstem)
         ## -e 1.0E-8
         success = os.system(comm)
         if success != 0:
             print 'conversion of world spectrum to mel cepstra failed on utterance ' + utt.get("utterance_name")
             return    
         
-        for stream in ['ap']:
-            comm = "%s/x2x +df %s.%s.double > %s.%s"%(self.tool, outfile, stream, outfile, stream)
+        for stream in ['bap']:
+            comm = "%s/x2x +df %s.%s.double > %s.%s"%(self.tool, outstem, stream, outstem, stream)
             success = os.system(comm)
             if success != 0:
                 print 'double -> float conversion (stream: '+stream+') failed on utterance ' + utt.get("utterance_name")
                 return    
 
         for stream in ['f0']:
-            comm = "%s/x2x +da %s.%s.double > %s.%s.txt"%(self.tool, outfile, stream, outfile, stream)
+            comm = "%s/x2x +da %s.%s.double > %s.%s.txt"%(self.tool, outstem, stream, outstem, stream)
             success = os.system(comm)
             if success != 0:
                 print 'double -> ascii conversion (stream: '+stream+') failed on utterance ' + utt.get("utterance_name")
                 return                        
                     
         ## 5) F0 conversion:
-        f0 = [float(val) for val in readlist(outfile + '.f0.txt')]
+        f0 = [float(val) for val in readlist(outstem + '.f0.txt')]
         log_f0 = []
         for val in f0:
             if val == 0.0:
                 log_f0.append('-1.0E10')
             else:
                 log_f0.append(math.log(val))
-        writelist(log_f0, outfile + '.f0.log')
+        writelist(log_f0, outstem + '.f0.log')
         
-        comm = "%s/x2x +af %s.f0.log > %s.lf0"%(self.tool, outfile, outfile)
+        comm = "%s/x2x +af %s.f0.log > %s.lf0"%(self.tool, outstem, outstem)
         success = os.system(comm)
         if success != 0:
             print 'writing log f0 failed on utterance ' + utt.get("utterance_name")
             return
             
         ## add mcep/ap/f0 deltas:
-        for (stream,dimen) in [('mgc', order+1), ('ap', apsize), ('lf0', 1)]:
+        for (stream,dimen) in [('mgc', order+1), ('bap', apsize), ('lf0', 1)]:
             comm = "perl %s/window.pl %s "%(script_dir, dimen)
-            comm += "%s.%s %s > %s.%s.delta"%(outfile, stream, ' '.join(self.winfiles), outfile, stream)
+            comm += "%s.%s %s > %s.%s.delta"%(outstem, stream, ' '.join(self.winfiles), outstem, stream)
             success = os.system(comm)
             if success != 0:
                 print 'delta ('+stream+') extraction failed on utterance ' + utt.get("utterance_name")
                 return
   
         ### combined streams:--        
-        ap = get_speech(outfile + '.ap.delta', apsize*len(self.winfiles))  
-        mgc = get_speech(outfile + '.mgc.delta', (order+1)*len(self.winfiles))     
-        lf0 = get_speech(outfile + '.lf0.delta', 1*len(self.winfiles))  
+        ap = get_speech(outstem + '.bap.delta', apsize*len(self.winfiles))  
+        mgc = get_speech(outstem + '.mgc.delta', (order+1)*len(self.winfiles))     
+        lf0 = get_speech(outstem + '.lf0.delta', 1*len(self.winfiles))  
         cmp = numpy.hstack([mgc, lf0, ap])
         put_speech(cmp, outfile)
 
@@ -249,11 +256,13 @@ class WorldExtractor(SUtteranceProcessor):
         add_htk_header(outfile, floats_per_frame, frameshift_ms)
         
         ## 8) tidy:
-        self.extensions_to_keep = ['.f0.txt']   ## TODO: make configuable?
+        self.extensions_to_keep = ['.'+self.output_filetype, '.f0.txt']   ## TODO: make configuable?
         self.extensions_to_keep.append('.resyn.wav')
-        keepfiles = [outfile + ending for ending in self.extensions_to_keep]
+        self.extensions_to_keep.extend(['.mgc','.bap','.lf0'])
         
-        for junk in glob.glob(outfile + '.*'):
+        keepfiles = [outstem + ending for ending in self.extensions_to_keep]
+        
+        for junk in glob.glob(outstem + '.*'):
             if not junk in keepfiles:
                 os.remove(junk)
 
