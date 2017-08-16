@@ -50,7 +50,7 @@ def main_work():
                             help="SVD algorithm to use: randomized, arpack or exact")
     a.add_argument('-norm_counts', default=False, action='store_true',  \
                             help="Normalise left and right cooc vectors")
-    a.add_argument('-no_mean', destination='append_mean', default=True, action='store_false',  \
+    a.add_argument('-no_mean', dest='append_mean_vector', default=True, action='store_false',  \
                             help="Suppress appending of mean vector")
                             
     opts = a.parse_args()
