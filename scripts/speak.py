@@ -19,6 +19,16 @@ from lxml import etree
 import logging
 logging.basicConfig()  ##level=logging.DEBUG
 
+import timeit
+
+def start_clock(comment):
+    print '%s... '%(comment),
+    return (timeit.default_timer(), comment)
+
+def stop_clock((start_time, comment), width=40):
+    padding = (width - len(comment)) * ' '
+    print '%s--> took %.2f seconds' % (padding, (timeit.default_timer() - start_time))  ##  / 60.)  ## min
+
 
 def main_work():
 
@@ -75,6 +85,7 @@ def main_work():
     voice = Voice(opts.speaker, opts.lang, opts.config, opts.stage, dirs)
 
 
+
     if not opts.output:
         output_wavefile = os.path.join(voice_location, 'output', 'wav', 'temp.wav')
     else:
@@ -91,6 +102,7 @@ def main_work():
     # An empty line marks the change of paragraphs in plain text files
     for line in fileinput.input(opts.files):
        line = line.decode('utf-8').rstrip()
+       t = start_clock('Synthesise sentence')
        print line
        if fileinput.isfirstline():
            if para != []:
@@ -113,12 +125,13 @@ def main_work():
            para = [line]
        else:
            para.append(line)
+
     if para != []:
        voice.synth_utterance(''.join(para), output_wavefile=output_wavefile, \
                             output_labfile=output_labfile)
        if opts.play:
            os.system('play ' + output_wavefile)
-
+    stop_clock(t)
 
 def parseSSML(tree, voice):
     """ Parses an SSML file and normalizes the text there. """
