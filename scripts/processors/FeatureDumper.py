@@ -11,6 +11,9 @@ import default.const as c
 from collections import defaultdict
 from naive.naive_util import writelist, all_entries_of_type, ms_to_htk, make_htk_wildcards
 
+import numpy
+from util.speech_manip import put_speech
+
 ## General class for making objects to dump features from utterances (e.g.
 ## HTS labels, other labels, R format training data for CARTs and others).
 
@@ -19,7 +22,8 @@ from naive.naive_util import writelist, all_entries_of_type, ms_to_htk, make_htk
 class FeatureDumper(SUtteranceProcessor):
 
     def __init__(self, processor_name='feature_dumper', target_nodes='//segment', output_filetype='align_lab', \
-                        contexts=[('segment', './attribute::segment_name')], context_separators='commas', question_file='SomeFileName', question_filter_threshold=0):
+                        contexts=[('segment', './attribute::segment_name')], context_separators='commas', \
+                        question_file='SomeFileName', question_filter_threshold=0, binary_output=False):
 
         ## get attributes from config, converting type and supplying defaults:
         self.processor_name = processor_name
@@ -29,7 +33,16 @@ class FeatureDumper(SUtteranceProcessor):
         self.question_file = question_file
         self.question_filter_threshold = question_filter_threshold
         self.contexts = contexts
+
         self.filter_contexts()
+
+        self.binary_output = binary_output   ## output data flattened, as floats
+        if self.binary_output:
+            if (self.htk_monophone_xpath or self.htk_state_xpath or self.start_time_xpath or self.end_time_xpath):
+                sys.exit('Cannot use features htk_monophone_xpath or htk_state_xpath or start_time_xpath end_time_xpath when dumping to binary format')
+            # When dumping data as binary, represent it as space separated values in a string first:--
+            self.context_separators = "spaces"
+
 
         assert self.contexts != []
 
@@ -84,7 +97,14 @@ class FeatureDumper(SUtteranceProcessor):
 
         if make_label:
             label_file = utt.get_filename(self.output_filetype)
-            writelist(utt_data, label_file, uni=True)
+            if self.binary_output:
+                utt_data = [line.split(' ') for line in utt_data]
+                ## In case of string data being present, following line will give:
+                ## ValueError: could not convert string to float: a
+                utt_data = numpy.array(utt_data, dtype='float')
+                put_speech(utt_data, label_file)
+            else:
+                writelist(utt_data, label_file, uni=True)
 
         return (utt_data, utt_questions) ## for writing utterance-level labels,
                 ## these returned values will be ignored. But these can be used to
