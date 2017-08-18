@@ -20,35 +20,38 @@ from naive.naive_util import readlist as naive_readlist
 
 from naive.train_static_vsm import train_static_vsm
         
-class VSMTagger(UtteranceProcessor):
+class VSMTagger(SUtteranceProcessor):
 
-    def load(self):  
-        
-        ## Attributes from config (with defaults):
-        self.target_nodes = self.config.get('target_nodes', '//token')
-        self.input_attribute = self.config.get('input_attribute', 'text')
-        self.output_attribute_stem = self.config.get('output_attribute_stem', 'vsm')
-        
-        self.use_ntokens = int(self.config.get('use_ntokens', 0)) ## no longer used
-        
-        ## 2 new options:
-        self.norm_counts = self.config.get('norm_counts', True)
-        self.svd_algorithm = self.config.get('svd_algorithm', 'randomized')
-        
-        self.context_size = int(self.config.get('context_size', 250))
-        self.rank = int(self.config.get('rank', 20))
-        self.unseen_method = int(self.config.get('unseen_method', 1))
-        self.discretisation_method = self.config.get('discretisation_method', 'none')   ## "standard_set"
-        self.n_discretisation_bins = int(self.config.get('n_discretisation_bins', 10))
+    def __init__(self, processor_name='vsm_tagger', target_nodes='//token', input_attribute='text', \
+                    output_attribute_stem='vsm', \
+                    norm_counts=True, svd_algorithm='randomized', context_size=250, rank=20, \
+                    unseen_method=1, discretisation_method='none', n_discretisation_bins=10, \
+                    tokenisation_pattern='(.)', replace_whitespace=False):
 
-        self.tokenisation_pattern = self.config.get('tokenisation_pattern', '(.)')
-        self.replace_whitespace = self.config.get('replace_whitespace', False)
+        self.processor_name = processor_name
+        self.target_nodes = target_nodes
+        self.input_attribute = input_attribute
+        self.output_attribute_stem = output_attribute_stem
+        self.norm_counts = norm_counts
+        self.svd_algorithm = svd_algorithm
+        self.context_size = context_size
+        self.rank = rank
+        self.unseen_method = unseen_method
+        self.discretisation_method = discretisation_method 
+        self.n_discretisation_bins = n_discretisation_bins
+        self.tokenisation_pattern = tokenisation_pattern
+        self.replace_whitespace = replace_whitespace
 
         assert self.discretisation_method in ['none', 'uniform', 'standard_set']    
-            # standard_set -- (name from Breiman et al. 1993 section 2.4.1) put boundaries  
-            # between each consecutive pair of values
+        # standard_set (name from Breiman et al. 1993 section 2.4.1): put boundaries  
+        # between each consecutive pair of values
 
+        super(VSMTagger, self).__init__()
 
+        self.parallelisable = False
+
+    def verify(self, voice_resources):
+        self.voice_resources = voice_resources
         ## Work out if model is trained already:
         self.table_file = os.path.join(self.get_location(), 'table_file')        
         self.trained = False
@@ -57,7 +60,7 @@ class VSMTagger(UtteranceProcessor):
     
         ## Load if trained:
         if self.trained:
-            if self.config["discretisation_method"] == "none":
+            if self.discretisation_method == "none":
                 self.vsm = LookupTable(self.table_file + ".table")
             else:
                 self.vsm = LookupTable(self.table_file + ".table.disc")
@@ -127,7 +130,7 @@ class VSMTagger(UtteranceProcessor):
             ## make the resulting (discretised) VSM table into LookupTable objects:
             self.vsm = LookupTable(disc_table_file)       
 
-        self.config["is_trained"] = True
+        self.trained = True
 
 
     def _process_text_line(self, text):            

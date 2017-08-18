@@ -31,8 +31,10 @@ this_file_location = os.path.split(os.path.realpath(os.path.abspath(os.path.dirn
 merlin_direc = os.path.join(this_file_location, '..', 'tools', 'merlin', 'src')
 sys.path.append(merlin_direc)
 
-#sys.path.append('/afs/inf.ed.ac.uk/user/o/owatts/repos/dnn_swahili/dnn_tts/')
-#sys.path.append('/afs/inf.ed.ac.uk/user/o/owatts/repos/dnn_swahili/dnn_tts/frontend/')
+from processors.FeatureExtractor import get_world_fft_and_apdim
+
+
+
 
 try:
     from frontend.label_normalisation import HTSLabelNormalisation, HTSDurationLabelNormalisation
@@ -563,19 +565,96 @@ class NNDurationPredictor(SUtteranceProcessor):
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
 
+        ## TODO: refactor to share the block below and write_merlin_config between 
+        ## NNDurationPredictor and NNAcousticPredictor
 
-        ### TODO: write config file like this??:--        
-        # conf_file = os.path.join(self.model_dir, 'config.cfg')
-        # write_merlin_config('duration', conf_file)
-        # print 'Wrote config file to %s -- edit as appropriate and use for training'%(conf_file)
+        ### Write merlin training list:
+        utts_to_use = []
+        for utterance in speech_corpus:
+            if utterance.has_external_data(self.input_label_filetype):
+                utts_to_use.append(utterance.get("utterance_name"))
+        writelist(utts_to_use, os.path.join(self.model_dir, 'filelist.txt'))
+        n_utts = len(utts_to_use)
 
+        self.write_merlin_config(n_utts=n_utts)
             
-### previously: print 'Ossian only extracts binary NN inputs and outputs:'
-#         for utt in speech_corpus:            
-#            
-#             htk_label_file = utt.get_filename(self.input_label_filetype) 
-#             binary_label = self.label_expander.load_labels_with_state_alignment(htk_label_file)
-#         
+
+    def write_merlin_config(self, n_utts=0):
+        this_directory = os.path.realpath(os.path.abspath(os.path.dirname(__file__ )))
+        ossian_root = os.path.abspath(os.path.join(this_directory, '..', '..'))    
+        template_fname = os.path.join(ossian_root, 'scripts', 'merlin_interface', 'feed_forward_dnn_ossian_duration_model.conf')
+
+        f = open(template_fname, 'r')
+        config_string = f.read()
+        f.close()
+
+
+        ## You need to divide the files available up into train/validation/test data. We don't need 
+        ## to do any testing, but set test_file_number to 1 to keep the tools happy. Split the remaining
+        ## files between train and validation. Using about 5% or 10% of the data for validation is 
+        ## pretty standard. 
+        n_test = 1
+        n_valid = int(float(n_utts) * 0.05) ## take 5%
+        extra = 3 ## hack - so that if merlin's data preparation fails for a couple of utterances, training won't break
+        n_train = n_utts - (n_valid + n_test + extra)
+        for quantity in [n_train, n_test, n_valid]:
+            assert quantity > 0
+
+
+        ## replace the markers in template with the relevant values:
+ 
+
+        for (placeholder, value) in [('__INSERT_PATH_TO_OSSIAN_HERE__', ossian_root), 
+                                     ('__INSERT_LANGUAGE_HERE__', self.voice_resources.lang), 
+                                     ('__INSERT_SPEAKER_HERE__', self.voice_resources.speaker), 
+                                     ('__INSERT_RECIPE_HERE__', self.voice_resources.configuration), 
+                                     ('__INSERT_FILELIST_HERE__', os.path.join(self.model_dir, 'filelist.txt')),                                                                           
+                                     ('__INSERT_NUMBER_OF_TRAINING_FILES_HERE__', n_train), 
+                                     ('__INSERT_NUMBER_OF_VALIDATION_FILES_HERE__', n_valid), 
+                                     ('__INSERT_NUMBER_OF_TEST_FILES_HERE__', n_test)]:
+             config_string = config_string.replace(placeholder, str(value))
+
+
+        # mgc_dim = self.mcep_order + 1
+        # lf0_dim = 1
+        # _, bap_dim = get_world_fft_and_apdim(self.sample_rate)
+        # for (placeholder, value) in [('__INSERT_MGC_DIM_HERE__', mgc_dim), 
+        #                              ('__INSERT_DELTA_MGC_DIM_HERE__', mgc_dim * 3), 
+        #                              ('__INSERT_BAP_DIM_HERE__', bap_dim), 
+        #                              ('__INSERT_DELTA_BAP_DIM_HERE__', bap_dim * 3), 
+        #                              ('__INSERT_LF0_DIM_HERE__', lf0_dim), 
+        #                              ('__INSERT_DELTA_BAP_DIM_HERE__', lf0_dim * 3)  ]:
+        #      config_string = config_string.replace(placeholder, str(value))
+
+        ### Write config file:--        
+        conf_file = os.path.join(self.model_dir, 'config.cfg')
+        f = open(conf_file, 'w')
+        f.write(config_string)
+        f.close()
+
+        ### Work out the processor's location in voices (i.e. where it will
+        ### be after training has happened) -- TODO: find a cleaner way to do this:--
+        voice_dir = os.path.join(ossian_root, 'voices', self.voice_resources.lang, \
+                        self.voice_resources.speaker, self.voice_resources.configuration, \
+                        'processors', self.processor_name)
+
+        print '------------'
+        print 'Wrote config file to: '
+        print conf_file
+        print 'Edit this config file as appropriate and use for training with Merlin.'
+        print 'In particular, you will want to increase training_epochs to train real voices'
+        print 'You will also want to experiment with learning_rate, batch_size, hidden_layer_size, hidden_layer_type'
+        print 
+        print 'To train with Merlin and then store the resulting model in a format suitable for Ossian, please do:'
+        print 
+        print 'cd %s'%(ossian_root)
+        print 'export THEANO_FLAGS=""; python ./tools/merlin/src/run_merlin.py %s'%(conf_file)
+        print 'python ./scripts/util/store_merlin_model.py %s %s'%(conf_file, voice_dir)        
+        print         
+        print '------------'
+
+
+
 
 
 
@@ -667,10 +746,94 @@ class NNAcousticPredictor(SUtteranceProcessor):
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
 
-        ## TODO: write aconfig automatically???:-        
-        # conf_file = os.path.join(self.model_dir, 'config.cfg')
-        # write_merlin_config('acoustic', conf_file)
-        # print 'Wrote config file to %s -- edit as appropriate and use for training'%(conf_file)
+       ## TODO: refactor to share the block below and write_merlin_config between 
+        ## NNDurationPredictor and NNAcousticPredictor
+
+        ### Write merlin training list:
+        utts_to_use = []
+        for utterance in speech_corpus:
+            if utterance.has_external_data(self.input_label_filetype):
+                utts_to_use.append(utterance.get("utterance_name"))
+        writelist(utts_to_use, os.path.join(self.model_dir, 'filelist.txt'))
+        n_utts = len(utts_to_use)
+
+        self.write_merlin_config(n_utts=n_utts)
+            
+
+    def write_merlin_config(self, n_utts=0):
+        this_directory = os.path.realpath(os.path.abspath(os.path.dirname(__file__ )))
+        ossian_root = os.path.abspath(os.path.join(this_directory, '..', '..'))    
+        template_fname = os.path.join(ossian_root, 'scripts', 'merlin_interface', 'feed_forward_dnn_ossian_acoustic_model.conf')
+
+        f = open(template_fname, 'r')
+        config_string = f.read()
+        f.close()
+
+        ## You need to divide the files available up into train/validation/test data. We don't need 
+        ## to do any testing, but set test_file_number to 1 to keep the tools happy. Split the remaining
+        ## files between train and validation. Using about 5% or 10% of the data for validation is 
+        ## pretty standard. 
+        n_test = 1
+        n_valid = int(float(n_utts) * 0.05) ## take 5%
+        extra = 3 ## hack - so that if merlin's data preparation fails for a couple of utterances, training won't break
+        n_train = n_utts - (n_valid + n_test + extra)
+        for quantity in [n_train, n_test, n_valid]:
+            assert quantity > 0
+
+
+        ## replace the markers in template with the relevant values:
+ 
+
+        for (placeholder, value) in [('__INSERT_PATH_TO_OSSIAN_HERE__', ossian_root), 
+                                     ('__INSERT_LANGUAGE_HERE__', self.voice_resources.lang), 
+                                     ('__INSERT_SPEAKER_HERE__', self.voice_resources.speaker), 
+                                     ('__INSERT_RECIPE_HERE__', self.voice_resources.configuration), 
+                                     ('__INSERT_FILELIST_HERE__', os.path.join(self.model_dir, 'filelist.txt')),                                       
+                                     ('__INSERT_NUMBER_OF_TRAINING_FILES_HERE__', n_train), 
+                                     ('__INSERT_NUMBER_OF_VALIDATION_FILES_HERE__', n_valid), 
+                                     ('__INSERT_NUMBER_OF_TEST_FILES_HERE__', n_test)]:
+             config_string = config_string.replace(placeholder, str(value))
+
+
+        mgc_dim = self.mcep_order + 1
+        lf0_dim = 1
+        _, bap_dim = get_world_fft_and_apdim(self.sample_rate)
+        for (placeholder, value) in [('__INSERT_MGC_DIM_HERE__', mgc_dim), 
+                                     ('__INSERT_DELTA_MGC_DIM_HERE__', mgc_dim * 3), 
+                                     ('__INSERT_BAP_DIM_HERE__', bap_dim), 
+                                     ('__INSERT_DELTA_BAP_DIM_HERE__', bap_dim * 3), 
+                                     ('__INSERT_LF0_DIM_HERE__', lf0_dim), 
+                                     ('__INSERT_DELTA_LF0_DIM_HERE__', lf0_dim * 3)  ]:
+             config_string = config_string.replace(placeholder, str(value))
+
+        ### Write config file:--        
+        conf_file = os.path.join(self.model_dir, 'config.cfg')
+        f = open(conf_file, 'w')
+        f.write(config_string)
+        f.close()
+
+        ### Work out the processor's location in voices (i.e. where it will
+        ### be after training has happened) -- TODO: find a cleaner way to do this:--
+        voice_dir = os.path.join(ossian_root, 'voices', self.voice_resources.lang, \
+                        self.voice_resources.speaker, self.voice_resources.configuration, \
+                        'processors', self.processor_name)
+
+        print '------------'
+        print 'Wrote config file to: '
+        print conf_file
+        print 'Edit this config file as appropriate and use for training with Merlin.'
+        print 'In particular, you will want to increase training_epochs to train real voices'
+        print 'You will also want to experiment with learning_rate, batch_size, hidden_layer_size, hidden_layer_type'
+        print 
+        print 'To train with Merlin and then store the resulting model in a format suitable for Ossian, please do:'
+        print 
+        print 'cd %s'%(ossian_root)
+        print 'export THEANO_FLAGS='' ; python ./tools/merlin/src/run_merlin.py %s'%(conf_file)
+        print 'python ./scripts/util/store_merlin_model.py %s %s'%(conf_file, voice_dir)        
+        print         
+        print '------------'
+
+
 
     def process_utterance(self, utt):
         if utt.has_attribute("waveform"):
@@ -802,7 +965,10 @@ def wavelet_manipulation(sequence, std_scaling_factors, scale_distance=0.5, num_
     return recon[:len(sequence)]
 
 
-    
+
+
+
+
 '''
 qfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/questions_dur.hed.cont'
 lfile = '/Users/owatts/repos/ossian_working/Ossian/train/sw/speakers/bible3/naive_SW6/lab_dur/19_062.lab_dur'
