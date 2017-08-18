@@ -118,6 +118,7 @@ class SKLDecisionTree(SUtteranceProcessor):
             
             utt_feats = utterance.dump_features(self.target_nodes, \
                                                 self.context_list, return_dict=True)
+
             for example in utt_feats:
                 assert 'response' in example,example
                 y_data.append({'response': example['response']})
@@ -173,9 +174,17 @@ class SKLDecisionTreePausePredictor(SKLDecisionTree):
         ## add predictions at token level:
         super(SKLDecisionTreePausePredictor, self).process_utterance(utt)  ##
 
+        ## assume if there is a waveform attached, we are training, otherwise runtime:
+        is_train_time = ('waveform' in utt.attrib)
+
         ## act on predictions by adding silence symbol:
         for segment in utt.xpath('//segment'):
-            if segment.get('pronunciation') in [c.POSS_PAUSE, c.PROB_PAUSE]:
+            ## if we are at run time and end of sentence, always add silence
+            token_text = segment.xpath('ancestor::token/attribute::text')
+            end_of_sentence = (token_text == '_END_')
+            if (not is_train_time) and end_of_sentence:
+                segment.attrib['pronunciation'] = 'sil'
+            elif segment.get('pronunciation') in [c.POSS_PAUSE, c.PROB_PAUSE]:
                 silence_predicted = '0'
                 for ancestor in segment.iterancestors():
                     if ancestor.has_attribute(self.output_attribute):
