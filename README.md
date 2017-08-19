@@ -91,7 +91,7 @@ Let's start by building some voices on this tiny dataset. The results will sound
 
 You can download 1 hour sets of data in various languages we prepared here: http://tundra.simple4all.org/ssw8data.html
 
-# A) DNN-based voice
+# DNN-based voice using a naive recipe
 
 Ossian trains voices according to a given 'recipe' -- the recipe specifies a sequence of processes which are applied to an utterance to turn it from text into speech, and is given in a file called ```$OSSIAN/recipes/<RECIPE>.cfg``` (where ```<RECIPE>``` is the name of a the specific recipe you are using). We will start with a recipe called ```naive_01_nn```. If you want to add components to the synthesiser, the best way to start will be to take the file for an existing recipe, copy it to a file with a new name and modify it.
 
