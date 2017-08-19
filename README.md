@@ -4,8 +4,7 @@
 
 # Ossian + DNN demo
 
-
-This repository contains a stripped-down and more up-to-date version of Ossian. All
+Ossian is a collection of Python code for building text-to-speech (TTS) systems, with an emphasis on easing research into building TTS systems with minimal expert supervision. Work on it started with funding from the [EU FP7 Project Simple4All](http://simple4all.org), and this repository contains a version which is considerable more up-to-date than that previously available. In particular, the original version of the toolkit relied on [HTS](http://hts.sp.nitech.ac.jp/) to perform acoustic modelling. Although it is still possible to use HTS, it now supports the use of neural nets trained with the [Merlin toolkit](https://github.com/CSTR-Edinburgh/merlin) as duration and acoustic models.  All
 comments and feedback about ways to improve it are very welcome. 
 
 # Python dependencies
@@ -192,3 +191,10 @@ We have used many other recipes with Ossian which will be documented here when c
 
 
 
+
+
+
+
+
+
+add instructions on adding more text
