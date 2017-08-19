@@ -37,10 +37,10 @@ pip install matplotlib
 Clone the Ossian github repository as follows:
 
 ```
-git clone https://github.com/oliverwatts/Ossian2.git
+git clone https://github.com/oliverwatts/Ossian.git
 ```
 
-This will create a directory called ```./Ossian2```; 
+This will create a directory called ```./Ossian```; 
 the following discussion assumes that an environment
 variable ```$OSSIAN``` is set to point to this directory.
 
