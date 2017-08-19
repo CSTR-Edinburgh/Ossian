@@ -88,15 +88,15 @@ This will create the following directory structures:
 ./corpus/rm/text_corpora/wikipedia_10K_words/
 ```
 
-Let's start by building some voices on this tiny dataset. The results will sound bad, but if you can get it to speak, no matter how badly, the tools are working and you can retrain on more data of your own choosing.
+Let's start by building some voices on this tiny dataset. The results will sound bad, but if you can get it to speak, no matter how badly, the tools are working and you can retrain on more data of your own choosing. Below are instructions on how to train HTS-based and neural network based voices on this data. 
 
 You can download 1 hour sets of data in various languages we prepared here: http://tundra.simple4all.org/ssw8data.html
 
-# A) HMM-based voice
+# A) DNN-based voice
 
-Ossian trains voices according to a given 'recipe' -- the recipe specifies a sequence of processes which are applied to an utterance to turn it from text into speech, and is given in a file called ```$OSSIAN/recipes/<RECIPE>.cfg``` (where ```<RECIPE>``` is the name of a the specific recipe you are using). We will start with a recipe called ```naive_01_hts```. If you want to add components to the synthesiser, the best way to start will be to take the file for an existing recipe, copy it to a file with a new name and modify it.
+Ossian trains voices according to a given 'recipe' -- the recipe specifies a sequence of processes which are applied to an utterance to turn it from text into speech, and is given in a file called ```$OSSIAN/recipes/<RECIPE>.cfg``` (where ```<RECIPE>``` is the name of a the specific recipe you are using). We will start with a recipe called ```naive_01_nn```. If you want to add components to the synthesiser, the best way to start will be to take the file for an existing recipe, copy it to a file with a new name and modify it.
 
-The recipe ```naive_01_hts``` is a language independent recipe which naively uses letters as acoustic modelling units. It will work reasonably for languages with sensible orthographies (e.g. Romanian) and less well for e.g. English.
+The recipe ```naive_01_nn``` is a language independent recipe which naively uses letters as acoustic modelling units. It will work reasonably for languages with sensible orthographies (e.g. Romanian) and less well for e.g. English.
 
 Ossian will put all files generated during training on the data ```<DATA_NAME>``` in language ```<LANG>``` according to recipe ```<RECIPE>``` in a directory called:
 
@@ -113,39 +113,17 @@ When if has successfully trained a voice, the components needed at synthesis are
 Assuming that we want to start by training a voice from scratch, we might want to check that these locations do not already exist for our combination of data/language/recipe:
 
 ```
-rm -r $OSSIAN/train/rm/speakers/rss_toy_demo/naive_01_hts/ $OSSIAN/voices/rm/rss_toy_demo/naive_01_hts/
+rm -r $OSSIAN/train/rm/speakers/rss_toy_demo/naive_01_nn/ $OSSIAN/voices/rm/rss_toy_demo/naive_01_nn/
 ```
 
 Then to train, do this:
 
 ```
 cd $OSSIAN
-python ./scripts/train.py -s rss_toy_demo -l rm naive_01_hts
-```
-
-If training went OK, you can synthesise speech. There is an example Romanian sentence in ```$OSSIAN/test/txt/romanian.txt``` -- we will synthesise a wave file for it in ```$OSSIAN/test/wav/romanian_toy_naive.wav``` like this:
-
-```
-mkdir $OSSIAN/test/wav/
-
-python ./scripts/speak.py -l rm -s rss_toy_demo -o ./test/wav/romanian_toy_HTS.wav naive_01_hts ./test/txt/romanian.txt
-```
-
-You can find the audio for this sentence [here](https://www.dropbox.com/s/xm9d7j7125y6j13/romanian_test_sentence_reference.wav?dl=0) for comparison (it was not used in training).
-
-
-# B) NN-based voice
-
-Use the recipe naive_01_nn to build a NN-based voice. If you compare naive_01_hts and naive_01_nn, you will see that many steps are the same. The differences are that state-level labels suitable for NN training are produced instead of phone-level labels for HTS training, and instead of specifying an HTS acoustic model, NN-based duration and acoustic models are specified. 
-
-The call to train with this recipe is the same as before, but with the recipe name updated:
-
-```
-cd $OSSIAN
 python ./scripts/train.py -s rss_toy_demo -l rm naive_01_nn
 ```
 
-However, as various messages printed during training will inform you, NN training is not directly supported within Ossian. The data and configs needed to train networks for duration and acoustic model are prepared by the above command line, but the Merlin toolkit needs to be called separately to actually train the models. The NNs it produces then need to be converted back to a suitable format for Ossian. This is a little messy, but better integration between Ossian and Merlin is an ongoing area of development. 
+As various messages printed during training will inform you, training of the neural networks themselves which will be used for duration and acoustic modelling is not directly supported within Ossian. The data and configs needed to train networks for duration and acoustic model are prepared by the above command line, but the Merlin toolkit needs to be called separately to actually train the models. The NNs it produces then need to be converted back to a suitable format for Ossian. This is a little messy, but better integration between Ossian and Merlin is an ongoing area of development. 
 
 Here's how to do this -- these same instructions will have been printed when you called ```./scripts/train.py``` above. First, train the duration model:
 
@@ -189,6 +167,15 @@ python ./scripts/util/store_merlin_model.py $OSSIAN/train/rm/speakers/rss_toy_de
 
 
 
+If training went OK, you can synthesise speech. There is an example Romanian sentence in ```$OSSIAN/test/txt/romanian.txt``` -- we will synthesise a wave file for it in ```$OSSIAN/test/wav/romanian_toy_naive.wav``` like this:
+
+```
+mkdir $OSSIAN/test/wav/
+
+python ./scripts/speak.py -l rm -s rss_toy_demo -o ./test/wav/romanian_toy_HTS.wav naive_01_nn ./test/txt/romanian.txt
+```
+
+You can find the audio for this sentence [here](https://www.dropbox.com/s/xm9d7j7125y6j13/romanian_test_sentence_reference.wav?dl=0) for comparison (it was not used in training).
 
 The configuration files used for duration and acoustic model training will work as-is for the toy data set, but when you move to other data sets, you will want to experiment with editing them to get better permformance.
 In particular, you will want to increase training_epochs to train voices on larger amounts of data; this could be set to e.g. 30 for the acoustic model and e.g. 100 for the duration model.
@@ -196,101 +183,12 @@ You will also want to experiment with learning_rate, batch_size, and network arc
 
 
 
-## Synthesis
-
-Now everything we need to synthesise is stored under $OSSIAN/voices/rm/rss_toy_demo/naive_01_nn/, we can generate sentences with the new model:
-
-```
-cd $OSSIAN
-python ./scripts/speak.py -l rm -s rss_toy_demo -o ./test/wav/romanian_toy_DNN.wav naive_01_nn ./test/txt/romanian.txt
-```
-
-You can compare the audio produced by the HTS system previously (./test/wav/romanian_toy_HTS.wav) with that produced by the DNN system (./test/wav/romanian_toy_DNN.wav)
-
-
-
-
-
 
 
 # Other recipes
 
-We have used many other recipes with Ossian, but we are still in the process of cleaning them up to be useful to others. The things below are still very much in flux.
+We have used many other recipes with Ossian which will be documented here when cleaned up enough to be useful to others. These will give the ability to add more  knowledge to the voices built, in the form of lexicons, letter-to-sound rules etc., and integrate existing trained components where they are available for the target language. 
 
 
 
-
-
-
-# Neural net voice with lexicon (version 1)
-
-
-Use the recipe lex_01_nn to build a NN-based voice using a pronunciation lexicon. To try this out
-in English (whose orthography means that a lexicon is needed to get decent results), obtain a toy
-English corpus like this:
-
-```
-cd $OSSIAN
-
-wget https://www.dropbox.com/s/shh0jjl0v5vk36q/english_toy_demo_corpus_for_ossian.tar?dl=0
-tar xvf english_toy_demo_corpus_for_ossian.tar\?dl\=0
-```
-
-There should now be a small corpus of English speech and text here:
-
-```
-corpus/en/speakers/tundra_toy_demo/
-```
-
-and an example English lexicon here:
-
-```
-corpus/en/labelled_corpora/cmudict/
-```
-
-Note that the name of this directory (cmudict) is the lexicon name which will
-be specified in a recipe. The dictionary entries are contained (in 
-Festival's Scheme format) in a file in the lexicon directory ending in .out, in this case:
-
-```
-cmudict.out
-```
-
-Information about the phones in the dictionary is given in a phoneset description --
-a file in the lexicon directory ending .table, in this case:
-
-```
-cmudict_phones.table 
-```
-
-This is a lookup table of phonetic features of each phone. The only feature (column) which
-is required for the lexicon to be applied is vowel_cons -- vowels must have the value 
-'vowel' in this column. (This is used for determining a set of legal onsets which is
-then used for syllabifying unseen words.)
-
-The file called letter.names gives the pronunciation of letters -- we will not use this 
-here, but if you make your own lexicon, please include a copy of this file (for English
-phoneset even) to keep the tools happy.   
-
-To build and run voices using a lexicon, you will need a letter-to-sound model to handle 
-out-of-vocabulary words. For this, we will use the joint multigram implementation 
-[Sequitur](https://www-i6.informatik.rwth-aachen.de/web/Software/g2p.html). Please adjust the flags
-in the script ```./scripts/setup_tools.sh``` as follows:
-
-```
-BASIC=0
-SEQUITUR=1
-STANFORD=0
-```
-
-... and run the script again to obtain and install Sequitur. 
-
-The recipe lex_01_nn.cfg adds this lexicon on top of naive_01_nn.cfg. Try it out on
-English data like this:
-
-```
-python ./scripts/train.py -s tundra_toy_demo -l en lex_01_nn
-```
-
-(...and then build DNN duration and acoustic models as before).
 
