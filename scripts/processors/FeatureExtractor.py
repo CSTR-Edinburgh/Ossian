@@ -183,7 +183,7 @@ class WorldExtractor(SUtteranceProcessor):
             print 'sox failed on utterance ' + utt.get("utterance_name")
             return
        
-        comm = "%s/analysis %s.wav %s.f0.double %s.sp.double %s.bap.double &> %s.log"%(self.tool, outstem, outstem, outstem, outstem, outstem)
+        comm = "%s/analysis %s.wav %s.f0.double %s.sp.double %s.bap.double > %s.log"%(self.tool, outstem, outstem, outstem, outstem, outstem)
         success = os.system(comm)
         #print comm
         if success != 0:
@@ -192,7 +192,7 @@ class WorldExtractor(SUtteranceProcessor):
        
         if self.resynthesise_training_data:
             ## resynthesis to test
-            comm = "%s/synth %s %s %s.f0.double %s.sp.double %s.bap.double %s.resyn.wav  &> %s.log"%(self.tool, fftl, rate, outstem, outstem, outstem, outstem, outstem)
+            comm = "%s/synth %s %s %s.f0.double %s.sp.double %s.bap.double %s.resyn.wav > %s.log"%(self.tool, fftl, rate, outstem, outstem, outstem, outstem, outstem)
             success = os.system(comm)
             if success != 0:
                 print 'world synthesis failed on utterance ' + utt.get("utterance_name")
