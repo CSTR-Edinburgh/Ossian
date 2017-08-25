@@ -8,6 +8,7 @@ import math
 import os
 import glob
 import numpy
+import sys
 
 from util.speech_manip import get_speech, put_speech
 from naive.naive_util import readlist, writelist, add_htk_header
@@ -67,6 +68,18 @@ class WorldExtractor(SUtteranceProcessor):
 
         super(WorldExtractor, self).__init__()
 
+
+            
+    def verify(self, voice_resources):
+        self.voice_resources = voice_resources
+
+        required_executables = ['analysis', 'synth', 'x2x', 'sopr', 'mcep']
+        self.tool = self.voice_resources.get_path(c.BIN)
+        for executable in required_executables:
+            full_path = os.path.join(self.tool, executable)
+            if not os.access(full_path, os.X_OK):
+                sys.exit('%s must exist and be executable to use WorldExtractor'%(full_path))
+            
 
 
     def do_training(self, speech_corpus, text_corpus):
