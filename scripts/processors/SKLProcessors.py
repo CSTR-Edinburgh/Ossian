@@ -69,7 +69,7 @@ class SKLDecisionTree(SUtteranceProcessor):
 
     def process_utterance(self, utt):
         
-        assert self.model, 'Cannot apply processor %s until its model is trained'%(self.conf['processor_name'])
+        assert self.model, 'Cannot apply processor %s until its model is trained'%(self.processor_name)
 
       
         for node in utt.xpath(self.target_nodes):
@@ -162,8 +162,7 @@ class SKLDecisionTree(SUtteranceProcessor):
         tree.export_graphviz(model, out_file=self.model_file + '.dot',  \
                                      feature_names=x_vectoriser.get_feature_names())
         
-        #self.load() ## reload -- get self.cart etc 
-        
+        self.verify(self.voice_resources) # ## reload -- get self.model etc
 
 
 class SKLDecisionTreePausePredictor(SKLDecisionTree):
