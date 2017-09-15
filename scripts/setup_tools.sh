@@ -21,7 +21,12 @@ OSSIAN=$SCRIPTPATH/../
 if [ $BASIC == 1 ] ; then
 
 
-    [ $# -ne 2 ] && echo "Wrong number of arguments supplied" && exit 1 ;
+    if [ $# -ne 2 ] ; then
+        echo "$0 Wrong number of arguments supplied!";
+        echo "usage: setup_tools.sh \$HTK_USERNAME \$HTK_PASSWORD";
+        exit 1 ;
+    fi
+    
 
     ## setup script based on http://homepages.inf.ed.ac.uk/owatts/ossian/html/setting_up.html
     HTK_USERNAME=$1
