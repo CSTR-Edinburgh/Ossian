@@ -76,7 +76,7 @@ def add_syllable_structure(node, pronunciation, syllable_delimiter='|', syllable
         stress_marks = []
         for phone in phones:
             if phone == '':
-                contine
+                continue
             if phone.endswith('0') or phone.endswith('1') or phone.endswith('2'):
                 stress_marks.append(phone[-1])
                 phone = phone.strip('012')
