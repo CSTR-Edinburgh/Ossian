@@ -103,11 +103,12 @@ if [ $BASIC == 1 ] ; then
     cd SPTK-3.6
     ./configure --prefix=$OSSIAN/tools/
 
-    ## TODO: fix this to not need clang on Linux
-    ## To compile on Mac, modify Makefile for delta tool:
-    mv ./bin/delta/Makefile ./bin/delta/Makefile.BAK
-    sed 's/CC = gcc/CC = clang/' ./bin/delta/Makefile.BAK > ./bin/delta/Makefile     ## (see http://sourceforge.net/p/sp-tk/bugs/68/)
-
+    if [ "$(uname)" == "Darwin" ]; then
+        ## To compile on Mac, modify Makefile for delta tool:
+        mv ./bin/delta/Makefile ./bin/delta/Makefile.BAK
+        sed 's/CC = gcc/CC = clang/' ./bin/delta/Makefile.BAK > ./bin/delta/Makefile     ## (see http://sourceforge.net/p/sp-tk/bugs/68/)
+    fi
+    
     make
     make install
 
