@@ -184,19 +184,21 @@ class WorldExtractor(SUtteranceProcessor):
 
         script_dir = self.voice_resources.path[c.SCRIPT]  
         
+
+        #### sox fails unpredictably on AWS ubuntu
         ## 1) remove wave header, downsample etc. with sox:
-        comm = "sox -t wav " + infile
-        comm += " -c 1 -e signed-integer "
-        comm += " -r %s"%(rate)
-        comm += " -b 16 "  
-        comm += " " + outstem + ".wav"
-        comm += " dither"   ## added for hi and rj data blizz 2014
-        success = os.system(comm)
-        if success != 0:
-            print 'sox failed on utterance ' + utt.get("utterance_name")
-            return
+        # comm = "sox -t wav " + infile
+        # comm += " -c 1 -e signed-integer "
+        # comm += " -r %s"%(rate)
+        # comm += " -b 16 "  
+        # comm += " " + outstem + ".wav"
+        # comm += " dither"   ## added for hi and rj data blizz 2014
+        # success = os.system(comm)
+        # if success != 0:
+        #     print 'sox failed on utterance ' + utt.get("utterance_name")
+        #     return
        
-        comm = "%s/analysis %s.wav %s.f0.double %s.sp.double %s.bap.double > %s.log"%(self.tool, outstem, outstem, outstem, outstem, outstem)
+        comm = "%s/analysis %s %s.f0.double %s.sp.double %s.bap.double > %s.log"%(self.tool, infile, outstem, outstem, outstem, outstem)
         success = os.system(comm)
         #print comm
         if success != 0:
