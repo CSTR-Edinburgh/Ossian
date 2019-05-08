@@ -187,22 +187,24 @@ class WorldExtractor(SUtteranceProcessor):
 
         #### sox fails unpredictably on AWS ubuntu
         ## 1) remove wave header, downsample etc. with sox:
-        # comm = "sox -t wav " + infile
-        # comm += " -c 1 -e signed-integer "
-        # comm += " -r %s"%(rate)
-        # comm += " -b 16 "  
-        # comm += " " + outstem + ".wav"
-        # comm += " dither"   ## added for hi and rj data blizz 2014
-        # success = os.system(comm)
-        # if success != 0:
-        #     print 'sox failed on utterance ' + utt.get("utterance_name")
-        #     return
+        comm = "sox -t wav " + infile
+        comm += " -c 1 -e signed-integer "
+        comm += " -r %s"%(rate)
+        comm += " -b 16 "  
+        comm += " " + outstem + ".wav"
+        comm += " dither"   ## added for hi and rj data blizz 2014
+        success = os.system(comm)
+        if success != 0:
+            print 'sox failed on utterance ' + utt.get("utterance_name")
+            utt.set("status", "sox_failed")
+            return
        
         comm = "%s/analysis %s %s.f0.double %s.sp.double %s.bap.double > %s.log"%(self.tool, infile, outstem, outstem, outstem, outstem)
         success = os.system(comm)
         #print comm
         if success != 0:
             print 'world analysis failed on utterance ' + utt.get("utterance_name")
+            utt.set("status", "world_analysis_failed")
             return
        
         if self.resynthesise_training_data:
@@ -211,6 +213,7 @@ class WorldExtractor(SUtteranceProcessor):
             success = os.system(comm)
             if success != 0:
                 print 'world synthesis failed on utterance ' + utt.get("utterance_name")
+                utt.set("status", "world_synthesis_failed")
                 return       
        
         comm = "%s/x2x +df %s.sp.double | %s/sopr -R -m 32768.0 | %s/mcep -a %s -m %s -l %s -j 0 -f 0.0 -q 3 > %s.mgc"%(self.tool, outstem, self.tool, self.tool, alpha, order, fftl, outstem)
@@ -218,6 +221,7 @@ class WorldExtractor(SUtteranceProcessor):
         success = os.system(comm)
         if success != 0:
             print 'conversion of world spectrum to mel cepstra failed on utterance ' + utt.get("utterance_name")
+            utt.set("status", "world_conversion_failed_1")            
             return    
         
         for stream in ['bap']:
@@ -225,6 +229,7 @@ class WorldExtractor(SUtteranceProcessor):
             success = os.system(comm)
             if success != 0:
                 print 'double -> float conversion (stream: '+stream+') failed on utterance ' + utt.get("utterance_name")
+                utt.set("status", "world_conversion_failed_2")                 
                 return    
 
         for stream in ['f0']:
@@ -232,6 +237,7 @@ class WorldExtractor(SUtteranceProcessor):
             success = os.system(comm)
             if success != 0:
                 print 'double -> ascii conversion (stream: '+stream+') failed on utterance ' + utt.get("utterance_name")
+                utt.set("status", "conversion_failed_3")                 
                 return                        
                     
         ## 5) F0 conversion:
@@ -248,6 +254,7 @@ class WorldExtractor(SUtteranceProcessor):
         success = os.system(comm)
         if success != 0:
             print 'writing log f0 failed on utterance ' + utt.get("utterance_name")
+            utt.set("status", "conversion_failed_4")               
             return
             
         ## add mcep/ap/f0 deltas:
@@ -257,6 +264,7 @@ class WorldExtractor(SUtteranceProcessor):
             success = os.system(comm)
             if success != 0:
                 print 'delta ('+stream+') extraction failed on utterance ' + utt.get("utterance_name")
+                utt.set("status", "conversion_failed_5")   
                 return
   
         ### combined streams:--        
