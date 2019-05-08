@@ -20,8 +20,14 @@ import multiprocessing
 uttdir = sys.argv[1]
 outdir = sys.argv[2]
 
+ABSOLUTE_PATHS=False
+NUTTS=10
 
-outdir = os.path.abspath(outdir)
+
+if ABSOLUTE_PATHS:
+    outdir = os.path.abspath(outdir)
+    
+
 
 
 assert not os.path.isdir(outdir), '%s already exists'%(outdir)
@@ -97,7 +103,7 @@ def proc_utt(uttfile):
     return (base, html_line)
 
 
-uttlist = sorted(glob.glob(uttdir + '/*.utt')) # [:10]
+uttlist = sorted(glob.glob(uttdir + '/*.utt'))[:NUTTS]
 
 if n_cores == 1:
     for uttfile in uttlist:
