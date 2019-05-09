@@ -205,7 +205,7 @@ class WorldExtractor(SUtteranceProcessor):
         
         ### use soundfile and librosa to load, downsample and write:
         try:
-            waveform, sr = soundfile.load(infile)
+            waveform, sr = soundfile.read(infile)
             if sr != rate:
                 waveform = librosa.resample(waveform, sr, rate)
             soundfile.write(outstem + ".wav", waveform, rate)
