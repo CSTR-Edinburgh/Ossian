@@ -211,10 +211,10 @@ class WorldExtractor(SUtteranceProcessor):
         #     soundfile.write(outstem + ".wav", waveform, rate)
 
 
-        except:
-            print 'resample failed on utterance ' + utt.get("utterance_name")
-            utt.set("status", "resample_failed")
-            return
+        #except:
+        #    print 'resample failed on utterance ' + utt.get("utterance_name")
+        #    utt.set("status", "resample_failed")
+        #    return
 
 
         comm = "%s/analysis %s %s.f0.double %s.sp.double %s.bap.double > %s.log"%(self.tool, infile, outstem, outstem, outstem, outstem)
