@@ -190,25 +190,25 @@ class WorldExtractor(SUtteranceProcessor):
 
         #### sox fails unpredictably on AWS ubuntu
         ## 1) remove wave header, downsample etc. with sox:
-        # comm = "sox -t wav " + infile
-        # comm += " -c 1 -e signed-integer "
-        # comm += " -r %s"%(rate)
-        # comm += " -b 16 "  
-        # comm += " " + outstem + ".wav"
-        # comm += " dither"   ## added for hi and rj data blizz 2014
-        # success = os.system(comm)
-        # if success != 0:
-        #     print 'sox failed on utterance ' + utt.get("utterance_name")
-        #     utt.set("status", "sox_failed")
-        #     return
+        comm = "sox -t wav " + infile
+        comm += " -c 1 -e signed-integer "
+        comm += " -r %s"%(rate)
+        comm += " -b 16 "  
+        comm += " " + outstem + ".wav"
+        comm += " dither"   ## added for hi and rj data blizz 2014
+        success = os.system(comm)
+        if success != 0:
+            print 'sox failed on utterance ' + utt.get("utterance_name")
+            utt.set("status", "sox_failed")
+            return
        
         
         ### use soundfile and librosa to load, downsample and write:
-        try:
-            waveform, sr = soundfile.load(infile)
-            if sr != rate:
-                waveform = librosa.resample(waveform, sr, rate)
-            soundfile.write(outstem + ".wav", waveform, rate)
+        # try:
+        #     waveform, sr = soundfile.read(infile)
+        #     if sr != rate:
+        #         waveform = librosa.resample(waveform, sr, rate)
+        #     soundfile.write(outstem + ".wav", waveform, rate)
 
         except:
             print 'resample failed on utterance ' + utt.get("utterance_name")
