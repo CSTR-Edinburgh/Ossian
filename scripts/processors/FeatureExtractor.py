@@ -16,8 +16,8 @@ from UtteranceProcessor import SUtteranceProcessor
 import default.const as c
 
 
-import soundfile 
-import librosa
+#import soundfile 
+#import librosa
 
 ## Check required executables are available:
 from distutils.spawn import find_executable
