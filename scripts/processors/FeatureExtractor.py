@@ -210,6 +210,7 @@ class WorldExtractor(SUtteranceProcessor):
         #         waveform = librosa.resample(waveform, sr, rate)
         #     soundfile.write(outstem + ".wav", waveform, rate)
 
+
         except:
             print 'resample failed on utterance ' + utt.get("utterance_name")
             utt.set("status", "resample_failed")
